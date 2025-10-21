@@ -1,5 +1,5 @@
 import { useUser } from "@clerk/nextjs";
-import { ConvexClientProvider } from "@/components/convex-client-provider";
+import { ConvexClientProvider } from "@/components/client-provider";
 import { useConvexAuth } from "convex/react";
 import { useEffect, useState } from "react";
 import { useMutation } from "convex/react";

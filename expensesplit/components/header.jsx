@@ -9,7 +9,7 @@ import {
   UserButton,
 } from "@clerk/nextjs";
 import { BarLoader } from "react-spinners";
-import { useStoreUser } from "../hooks/use-store-user";
+import { useStoreUser } from "../hooks/user-in-db";
 
 const Header = () => {
   const { isLoading } = useStoreUser();
