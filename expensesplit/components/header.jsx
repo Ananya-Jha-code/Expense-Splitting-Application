@@ -8,27 +8,32 @@ import {
   SignUpButton,
   UserButton,
 } from "@clerk/nextjs";
+import { BarLoader } from "react-spinners";
+import { useStoreUser } from "../hooks/use-store-user";
 
 const Header = () => {
+  const { isLoading } = useStoreUser();
+
   return (
-    <div className="flex justify-between items-center p-4 bg-white shadow">
-      <h1 className="text-lg font-bold">Expense Splitter</h1>
+    <header className="fixed top-0 w-full border-b bg-white/95 backdrop-blur z-50 supports-[backdrop-filter]:bg-white/60">
+      <nav className="flex items-center justify-between px-4 py-2">
+        <div className="text-lg font-semibold">Expense Splitter</div>
+        <div>
+          <SignedOut>
+            <div className="flex gap-2">
+              <SignInButton mode="modal" />
+              <SignUpButton mode="modal" />
+            </div>
+          </SignedOut>
 
-      <div className="flex gap-3 items-center">
-        <SignedOut>
-          <SignInButton />
-          <SignUpButton>
-            <button className="bg-[#6c47ff] text-white rounded-full font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 cursor-pointer">
-              Sign Up
-            </button>
-          </SignUpButton>
-        </SignedOut>
+          <SignedIn>
+            <UserButton afterSignOutUrl="/" />
+          </SignedIn>
+        </div>
+      </nav>
 
-        <SignedIn>
-          <UserButton afterSignOutUrl="/" />
-        </SignedIn>
-      </div>
-    </div>
+      {isLoading && <BarLoader width={"100%"} color="#36d7b7" />}
+    </header>
   );
 };
 
