@@ -8,6 +8,8 @@
  * @module
  */
 
+import type * as dashboard from "../dashboard.js";
+import type * as expenses from "../expenses.js";
 import type * as users from "../users.js";
 
 import type {
@@ -25,6 +27,8 @@ import type {
  * ```
  */
 declare const fullApi: ApiFromModules<{
+  dashboard: typeof dashboard;
+  expenses: typeof expenses;
   users: typeof users;
 }>;
 declare const fullApiWithMounts: typeof fullApi;

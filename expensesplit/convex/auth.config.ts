@@ -1,4 +1,4 @@
-import { AuthConfig } from "convex/server";
+/*import { AuthConfig } from "convex/server";
 
 export default {
   providers: [
@@ -11,4 +11,21 @@ export default {
       applicationID: "convex",
     },
   ]
+} satisfies AuthConfig;
+*/
+import type { AuthConfig } from "convex/server";
+
+const issuer = process.env.CLERK_JWT_ISSUER_DOMAIN;
+if (!issuer) {
+  // Если переменная не задана — остановим запуск с понятной ошибкой
+  throw new Error("Missing CLERK_JWT_ISSUER_DOMAIN env var");
+}
+
+export default {
+  providers: [
+    {
+      domain: issuer,           // здесь уже точно string
+      applicationID: "convex",
+    },
+  ],
 } satisfies AuthConfig;
