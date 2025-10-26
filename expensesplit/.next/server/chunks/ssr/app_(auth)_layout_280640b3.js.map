@@ -1,0 +1,6 @@
+{
+  "version": 3,
+  "sources": [],
+  "sections": [
+    {"offset": {"line": 7, "column": 0}, "map": {"version":3,"sources":["file://C%3A/Users/Aditi/Desktop/CS%20Classes/CS%20520/Expense-Splitting-Application/expensesplit/app/%28auth%29/layout.js"],"sourcesContent":["import React from \"react\";\nconst AuthLayout = ({ children }) => {\n    return <div className=\"flex justify-center pt-20\">{children}</div>;\n};\nexport default AuthLayout;"],"names":[],"mappings":";;;;AAAA;;;AACA,MAAM,aAAa,CAAC,EAAE,QAAQ,EAAE;IAC5B,qBAAO,8OAAC;QAAI,WAAU;kBAA6B;;;;;;AACvD;uCACe","debugId":null}}]
+}
