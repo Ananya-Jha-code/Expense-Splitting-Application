@@ -20,9 +20,8 @@ export default defineSchema({
         createdAt: v.number(),
       }).index("by_owner", ["ownerId"]),
     
-      // --- new ---
       groups: defineTable({
-        ownerId: v.string(),        // who created the group (Clerk subject)
+        ownerId: v.string(),       
         name: v.string(),
         createdAt: v.number(),
       }).index("by_owner", ["ownerId"]),
@@ -35,16 +34,16 @@ export default defineSchema({
     
       expenses: defineTable({
         groupId: v.id("groups"),
-        createdBy: v.string(),      // Clerk subject
+        createdBy: v.string(),    
         description: v.string(),
-        amount: v.number(),         // total amount
+        amount: v.number(),        
         createdAt: v.number(),
       }).index("by_group", ["groupId"]),
     
       splits: defineTable({
         expenseId: v.id("expenses"),
         contactId: v.id("contacts"),
-        share: v.number(),          // amount charged to this contact
+        share: v.number(),          
       }).index("by_expense", ["expenseId"]),
     
 });
