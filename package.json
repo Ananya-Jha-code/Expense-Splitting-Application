@@ -1,6 +1,7 @@
 {
   "dependencies": {
     "convex": "^1.28.0",
-    "framer-motion": "^12.23.24"
+    "framer-motion": "^12.23.24",
+    "recharts": "^3.3.0"
   }
 }
