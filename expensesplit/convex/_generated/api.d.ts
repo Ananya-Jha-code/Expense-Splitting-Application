@@ -8,6 +8,9 @@
  * @module
  */
 
+import type * as contacts from "../contacts.js";
+import type * as expenses from "../expenses.js";
+import type * as groups from "../groups.js";
 import type * as http from "../http.js";
 import type * as users from "../users.js";
 
@@ -26,6 +29,9 @@ import type {
  * ```
  */
 declare const fullApi: ApiFromModules<{
+  contacts: typeof contacts;
+  expenses: typeof expenses;
+  groups: typeof groups;
   http: typeof http;
   users: typeof users;
 }>;
