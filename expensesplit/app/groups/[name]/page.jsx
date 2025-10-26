@@ -6,10 +6,17 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 
 export default function GroupDetailPage() {
-  const { id } = useParams(); // groupId
-  const members = useQuery(api.groups.members, { groupId: id });
-  const expenses = useQuery(api.expenses.listByGroup, { groupId: id });
-  const balances = useQuery(api.expenses.balances, { groupId: id });
+  const { name } = useParams(); // group name
+  const group = useQuery(api.groups.getByName, { name });
+  const groupId = group?._id;
+
+  const shouldFetch = Boolean(groupId);
+
+
+
+  const members = useQuery(api.groups.members, shouldFetch ? { groupId } : "skip");
+  const expenses = useQuery(api.expenses.listByGroup, shouldFetch ? { groupId } : "skip");
+  const balances = useQuery(api.expenses.balances, shouldFetch ? { groupId } : "skip");
   const myContacts = useQuery(api.contacts.list); 
   const addMember = useMutation(api.groups.addMember);
   const removeMember = useMutation(api.groups.removeMember);
@@ -39,18 +46,33 @@ export default function GroupDetailPage() {
     }
   }, [members]);
   
+  if (!group) {
+    return (
+      <main className="p-6 text-gray-500">
+        Loading group details...
+      </main>
+    );
+  }
+
+  if (group === null) {
+    return (
+      <main className="p-6 text-red-500">
+        Group not found.
+      </main>
+    );
+  }
 
 
   return (
     <main className="mx-auto max-w-3xl p-6 space-y-8">
-      <h1 className="text-2xl font-semibold">Group</h1>
+      <h1 className="text-2xl font-semibold">{group?.name}</h1>
 
       {/* Members */}
       <form
   onSubmit={async (e) => {
     e.preventDefault();
     if (!selectedContactId) return;
-    await addMember({ groupId: id, contactId: selectedContactId });
+    await addMember({ groupId, contactId: selectedContactId });
     setSelectedContactId("");
   }}
   className="flex gap-2"
@@ -100,7 +122,7 @@ export default function GroupDetailPage() {
         e.preventDefault();
         const total = Number(amount);
         if (!desc.trim() || !isFinite(total) || total <= 0) return;
-        await createEqual({ groupId: id, description: desc.trim(), amount: total });
+        await createEqual({ groupId, description: desc.trim(), amount: total });
         setDesc(""); setAmount("");
       }}
       className="flex gap-2"
@@ -149,7 +171,7 @@ export default function GroupDetailPage() {
           if (!customDesc.trim() || cleaned.length === 0) return;
 
           await createCustom({
-            groupId: id,
+            groupId,
             description: customDesc.trim(),
             shares: cleaned,
           });

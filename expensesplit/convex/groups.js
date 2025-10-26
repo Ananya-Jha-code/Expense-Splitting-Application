@@ -24,11 +24,48 @@ export const create = mutation({
   handler: async (ctx, { name }) => {
     const ident = await ctx.auth.getUserIdentity();
     if (!ident) throw new Error("Not authenticated");
-    return ctx.db.insert("groups", {
+
+    const trimmedName = name.trim();
+
+    // check if a group with this name already exists
+    const existing = await ctx.db
+      .query("groups")
+      .withIndex("by_owner_name", (q) =>
+        q.eq("ownerId", ident.subject).eq("name", trimmedName)
+      )
+      .first();
+
+    if (existing) {
+      return { success: false, message: `You already have a group with this name. Try a different one!` };
+      
+      //throw new Error(`You already have a group called "${trimmedName}"`);
+    }
+
+    const id = await ctx.db.insert("groups", {
       ownerId: ident.subject,
       name,
       createdAt: Date.now(),
     });
+
+    return {success: true, id}
+  },
+});
+
+//get group by name for routing
+export const getByName = query({
+  args: { name: v.string() },
+  handler: async (ctx, { name }) => {
+    const ident = await ctx.auth.getUserIdentity();
+    if (!ident) return null;
+
+    const group = await ctx.db
+      .query("groups")
+      .withIndex("by_owner_name", (q) =>
+        q.eq("ownerId", ident.subject).eq("name", name.trim())
+      )
+      .first();
+
+    return group ?? null;
   },
 });
 

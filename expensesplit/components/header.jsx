@@ -15,12 +15,24 @@ const Header = () => {
   return (
     <header className="fixed top-0 w-full border-b bg-white/95 backdrop-blur z-50 supports-[backdrop-filter]:bg-white/60">
       <nav className="flex items-center justify-between px-6 py-3">
-        <div className="flex-items-center">
+        <div className="flex items-center gap-4">
           <PiggyBank
             size={50}          
             strokeWidth={2.5}  
             className="text-pink-500"
           />
+
+          <SignedIn>
+            <Link href="/dashboard">
+              <Button
+                variant="outline"
+                className="hidden md:inline-flex items-center gap-2 text-base font-medium text-pink-500 hover:text-pink-500 hover:border-pink-600 transition"
+              >
+                <LayoutDashboard className="h-4 w-4" />
+                Dashboard
+              </Button>
+            </Link>
+          </SignedIn>
 
         </div>
         <div>
@@ -37,17 +49,23 @@ const Header = () => {
             </div>
           </SignedOut>
           <SignedIn>
-            <div className="flex items-center gap-4">
-              <Link href="/dashboard">
+            <div className="flex items-center gap-5">
+              <Link href="/contacts">
                 <Button
-                  variant="outline"
-                  className="hidden md:inline-flex items-center gap-2 text-pink-500 hover:text-pink-500 hover:border-pink-600 transition"
+                  variant="ghost"
+                  className="text-base font-medium text-pink-500  hover:text-pink-600 transition"
                 >
-                  <LayoutDashboard className="h-4 w-4" />
-                  Dashboard
+                  Contacts
                 </Button>
               </Link>
-
+              <Link href="/groups">
+                <Button
+                  variant="ghost"
+                  className="text-base text-pink-500 text-pink-500 hover:text-pink-600 transitions"
+                >
+                  Groups
+                </Button>
+              </Link>
               <UserButton afterSignOutUrl="/" />
             </div>
           </SignedIn>

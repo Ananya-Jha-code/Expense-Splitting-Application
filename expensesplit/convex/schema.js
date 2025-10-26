@@ -28,7 +28,8 @@ export default defineSchema({
         ownerId: v.string(),       
         name: v.string(),
         createdAt: v.number(),
-      }).index("by_owner", ["ownerId"]),
+      }).index("by_owner", ["ownerId"])
+      .index("by_owner_name", ["ownerId", "name"]),
     
       groupMembers: defineTable({
         groupId: v.id("groups"),
