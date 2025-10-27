@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as clerk from "../clerk.js";
 import type * as contacts from "../contacts.js";
 import type * as dashboard from "../dashboard.js";
 import type * as expenses from "../expenses.js";
@@ -30,6 +31,7 @@ import type {
  * ```
  */
 declare const fullApi: ApiFromModules<{
+  clerk: typeof clerk;
   contacts: typeof contacts;
   dashboard: typeof dashboard;
   expenses: typeof expenses;
