@@ -15,6 +15,7 @@ export default function ContactsPage() {
   const [form, setForm] = React.useState({ name: "", email: "", phone: "" });
   const [editing, setEditing] = React.useState(null); // contact _id
   const [pending, setPending] = React.useState(false);
+  const [error, setError] = React.useState(null);
 
   const isLoading = contacts === undefined;
 
@@ -26,29 +27,57 @@ export default function ContactsPage() {
     const phone = (form.phone || "").trim();
     const isValidEmail = (s) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(s);
   
-    if (!email) {
-      alert("Email is required.");
+    if (!email && !phone) {
+      setError("Please enter either an email or phone number.");
       return;
     }
     if (!isValidEmail(email)) {
-      alert("Please enter a valid email address.");
+      setError("Please enter a valid email address.");
       return;
     }
   
     setPending(true);
     try {
-      await createChecked({
+      const result = await createChecked({
         name: form.name.trim(),
         email,
         phone: phone || undefined,
       });
+      if (!result?.success) {
+        setError(result?.message || "Failed to add contact.");
+        return;
+      }
       setForm({ name: "", email: "", phone: "" });
+      setError(null);
     } catch (err) {
-      alert(err?.data?.message || err?.message || "Failed to add contact");
+      console.error("Unexpected error:", err);
+      setError("Something went wrong — please try again later.");
+
     } finally {
       setPending(false);
     }
   }
+
+  function formatPhoneNumber(value) {
+  // remove all non-digit characters
+    const digits = value.replace(/\D/g, "");
+
+    // ensure +1 prefix
+    let formatted = "+1 ";
+    if (digits.length > 1) {
+      const area = digits.slice(1, 4);
+      const prefix = digits.slice(4, 7);
+      const line = digits.slice(7, 11);
+      if (area) formatted += `(${area}`;
+      if (area && area.length === 3) formatted += `) `;
+      if (prefix) formatted += prefix;
+      if (prefix && prefix.length === 3) formatted += "-";
+      if (line) formatted += line;
+    }
+
+    return formatted.trim();
+  }
+
   
   
 
@@ -70,8 +99,8 @@ export default function ContactsPage() {
                  value={form.name} onChange={(e) => setForm(s => ({...s, name: e.target.value}))} required />
           <input className="border rounded-lg px-3 py-2" placeholder="Email"
                  value={form.email} onChange={(e) => setForm(s => ({...s, email: e.target.value}))} />
-          <input className="border rounded-lg px-3 py-2" placeholder="Phone"
-                 value={form.phone} onChange={(e) => setForm(s => ({...s, phone: e.target.value}))} />
+          <input className="border rounded-lg px-3 py-2" placeholder="Phone #"
+                 value={form.phone} onChange={(e) => setForm(s => ({...s, phone:formatPhoneNumber(e.target.value)}))} />
           <button type="submit" disabled={pending} className="rounded-lg px-4 py-2 border bg-black text-white disabled:opacity-60">
             {pending ? "Adding..." : "Add"}
           </button>
@@ -151,6 +180,21 @@ export default function ContactsPage() {
           )}
         </div>
       </SignedIn>
+      {error && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black/40 z-50">
+          <div className="bg-white rounded-2xl shadow-lg p-6 w-80 text-center">
+            <h2 className="text-lg font-semibold mb-2">Error</h2>
+            <p className="text-gray-700 mb-4">{error}</p>
+            <button
+              onClick={() => setError(null)}
+              className="px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800"
+            >
+              OK
+            </button>
+          </div>
+        </div>
+      )}
+
     </main>
   );
 }

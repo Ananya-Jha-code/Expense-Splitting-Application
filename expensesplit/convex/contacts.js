@@ -30,7 +30,7 @@ export const createChecked = action({
 
     const emailLower = normalizeEmail(email);
     if (!emailLower || !isValidEmail(emailLower)) {
-      throw new Error("Invalid email address.");
+      return { success: false, message: "Invalid email address." };
     }
 
     // Look up user in Clerk Admin API
@@ -47,19 +47,28 @@ export const createChecked = action({
       (u.email_addresses || []).some(e => (e.email_address || "").toLowerCase() === emailLower)
     );
     if (!match) {
-      throw new Error("No registered user with this email was found.");
+      return { success: false, message: "No registered user with this email was found." };
     }
 
     // call the mutation to insert
-    return await ctx.runMutation(api.contacts._createAfterCheck, {
+    const result = await ctx.runMutation(api.contacts._createAfterCheck, {
       ownerId: ident.subject,
       name,
       email: emailLower,
       phone: phone?.trim() || undefined,
       clerkUserId: match.id,
-    });    
+    }); 
+    if (result?.success === false) {
+      return result;
+    }
+    
+    return { success: true, contactId: result };
   },
 });
+
+function normalizePhone(phone) {
+  return phone?.replace(/\D/g, "").slice(-10) || null; // last 10 digits only
+}
 
 /** MUTATION: assumes checks already done; just writes */
 export const _createAfterCheck = mutation({
@@ -77,10 +86,15 @@ export const _createAfterCheck = mutation({
       .withIndex("by_owner", (q) => q.eq("ownerId", ownerId))
       .collect();
     if (existing.some((c) => (c.emailLower || "") === email)) {
-      throw new Error("A contact with this email already exists.");
+      return { success: false, message: "A contact with this email already exists." };
+    }
+    // duplicate by phone (if provided)
+    const phoneNorm = normalizePhone(phone);
+    if (phoneNorm && existing.some((c) => normalizePhone(c.phone) === phoneNorm)) {
+      return { success: false, message: "A contact with this phone number already exists." };
     }
 
-    return ctx.db.insert("contacts", {
+    const id= await ctx.db.insert("contacts", {
       ownerId,
       name: name.trim(),
       email,
@@ -89,6 +103,7 @@ export const _createAfterCheck = mutation({
       clerkUserId,
       createdAt: Date.now(),
     });
+    return id;
   },
 });
 

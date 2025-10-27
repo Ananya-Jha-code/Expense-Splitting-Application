@@ -3,6 +3,7 @@ import "./globals.css";
 import Header from "../components/header"; // relative path is safer
 import { ClerkProvider } from "@clerk/nextjs";
 import { ConvexClientProvider } from "@/components/client-provider";
+import { Global } from "recharts";
 
 const inter = Inter({ subsets: ["latin"] });
 const geistSans = Geist({
@@ -30,6 +31,11 @@ export default function RootLayout({ children }) {
         <ClerkProvider>
           {/* Convex client for your database/functions */}
           <ConvexClientProvider>
+            <div
+              id="global-loader"
+              className="hidden fixed top-0 left-0 w-full h-[3px] bg-pink-500 z-[9999]"
+            ></div>
+            
             <Header />
             <main className="min-h-screen pt-20 px-6">{children}</main>
           </ConvexClientProvider>
