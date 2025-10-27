@@ -1,4 +1,4 @@
-import { mutation } from "./_generated/server";
+import { mutation, query } from "./_generated/server";
 import { v } from "convex/values"; 
 
 // export const store = mutation({
@@ -12,7 +12,6 @@ import { v } from "convex/values";
 //     const username = identity.username ?? "";
 //     const name = identity.name ?? "Anonymous";
 //     const tokenIdentifier = identity.tokenIdentifier ?? "";
-//     console.log("🟢 store user:", tokenIdentifier);
 
 //     // Check if we've already stored this identity before.
 //     // Note: If you don't want to define an index right away, you can use
@@ -91,7 +90,6 @@ export const upsertFromClerk = internalMutation({
   args: { data: v.any() }, 
   async handler(ctx, { data }) {
     const tokenIdentifier = `clerk|${data.id}`; 
-    console.log("🟢 upsertFromClerk inserted/updated user with token:", tokenIdentifier);
     const name = `${data.first_name ?? ""} ${data.last_name ?? ""}`.trim();
     const email = data.email_addresses?.[0]?.email_address ?? "";
     const username = data.username ?? "";
@@ -109,14 +107,10 @@ export const upsertFromClerk = internalMutation({
   },
 });
 
-/**
- * Handles user.deleted event from Clerk.
- */
 export const deleteFromClerk = internalMutation({
   args: { clerkUserId: v.string() },
   async handler(ctx, { clerkUserId }) {
-    const tokenIdentifier = `clerk|${clerkUserId}`; // Match what was stored
-        console.log("🧨 deleteFromClerk searching for:", tokenIdentifier);
+    const tokenIdentifier = `clerk|${clerkUserId}`; 
     const user = await ctx.db
       .query("users")
       .withIndex("by_token", (q) => q.eq("tokenIdentifier", tokenIdentifier))
@@ -127,5 +121,38 @@ export const deleteFromClerk = internalMutation({
     } else {
       console.warn("No user found in Convex for Clerk ID:", clerkUserId);
     }
+  },
+});
+
+export const search = query({
+  args: { term: v.string() },
+  handler: async (ctx, { term }) => {
+    const t = term.trim();
+    if (t === "") return [];
+
+    // Search across multiple fields
+    const nameMatches = await ctx.db
+      .query("users")
+      .withSearchIndex("search_name", (q) => q.search("name", t))
+      .take(5);
+
+    const emailMatches = await ctx.db
+      .query("users")
+      .withSearchIndex("search_email", (q) => q.search("email", t))
+      .take(5);
+
+    const usernameMatches = await ctx.db
+      .query("users")
+      .withSearchIndex("search_username", (q) => q.search("username", t))
+      .take(5);
+
+    
+    const all = [...nameMatches, ...emailMatches, ...usernameMatches];
+    const seen = new Set();
+    return all.filter((u) => {
+      if (seen.has(u._id.id)) return false;
+      seen.add(u._id.id);
+      return true;
+    });
   },
 });
