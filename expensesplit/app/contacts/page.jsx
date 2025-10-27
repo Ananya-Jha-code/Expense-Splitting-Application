@@ -4,10 +4,11 @@ import * as React from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { SignedIn, SignedOut, SignInButton } from "@clerk/nextjs";
+import { useAction } from "convex/react";            
 
 export default function ContactsPage() {
   const contacts = useQuery(api.contacts.list);
-  const create = useMutation(api.contacts.create);
+  const createChecked = useAction(api.contacts.createChecked); 
   const remove = useMutation(api.contacts.remove);
   const update = useMutation(api.contacts.update);
 
@@ -20,18 +21,36 @@ export default function ContactsPage() {
   async function onAdd(e) {
     e.preventDefault();
     if (!form.name.trim()) return;
+  
+    const email = (form.email || "").trim();
+    const phone = (form.phone || "").trim();
+    const isValidEmail = (s) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(s);
+  
+    if (!email) {
+      alert("Email is required.");
+      return;
+    }
+    if (!isValidEmail(email)) {
+      alert("Please enter a valid email address.");
+      return;
+    }
+  
     setPending(true);
     try {
-      await create({
+      await createChecked({
         name: form.name.trim(),
-        email: form.email?.trim() || undefined,
-        phone: form.phone?.trim() || undefined,
+        email,
+        phone: phone || undefined,
       });
       setForm({ name: "", email: "", phone: "" });
+    } catch (err) {
+      alert(err?.data?.message || err?.message || "Failed to add contact");
     } finally {
       setPending(false);
     }
   }
+  
+  
 
   return (
     <main className="mx-auto max-w-2xl p-6 space-y-6">
@@ -88,6 +107,15 @@ export default function ContactsPage() {
                              onChange={(e) => setForm(s => ({...s, email: e.target.value}))} />
                       <input className="border rounded px-2 py-1" value={form.phone}
                              onChange={(e) => setForm(s => ({...s, phone: e.target.value}))} />
+                      <input
+                              type="email"
+                              inputMode="email"
+                              autoComplete="email"
+                              className="border rounded-lg px-3 py-2"
+                              placeholder="Email"
+                              value={form.email}
+                              onChange={(e) => setForm(s => ({ ...s, email: e.target.value }))}
+                      />
                       <div className="flex gap-2">
                         <button className="px-3 py-1 border rounded bg-black text-white">Save</button>
                         <button type="button" onClick={() => setEditing(null)} className="px-3 py-1 border rounded">Cancel</button>

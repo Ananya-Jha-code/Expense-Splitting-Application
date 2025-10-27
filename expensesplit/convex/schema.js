@@ -17,12 +17,15 @@ export default defineSchema({
 
 
     contacts: defineTable({
-        ownerId: v.string(),        
-        name: v.string(),
-        email: v.optional(v.string()),
-        phone: v.optional(v.string()),
-        createdAt: v.number(),
-      }).index("by_owner", ["ownerId"]),
+      ownerId: v.string(),
+      name: v.string(),
+      email: v.optional(v.string()),
+      emailLower: v.optional(v.string()),
+      phone: v.optional(v.string()),
+      clerkUserId: v.optional(v.string()),
+      createdAt: v.number(),
+    }).index("by_owner", ["ownerId"]),
+    
     
       groups: defineTable({
         ownerId: v.string(),       

@@ -1,45 +1,98 @@
-import { query, mutation } from "./_generated/server";
+import { query, mutation, action } from "./_generated/server";
 import { v } from "convex/values";
+import { api } from "./_generated/api";
 
+const isValidEmail = (s) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test((s || "").trim());
+const normalizeEmail = (s) => s?.trim().toLowerCase() || undefined;
+
+/** Read contacts (unchanged) */
 export const list = query({
   args: {},
   handler: async (ctx) => {
     const ident = await ctx.auth.getUserIdentity();
     if (!ident) return [];
-    return ctx.db
-      .query("contacts")
+    return ctx.db.query("contacts")
       .withIndex("by_owner", (q) => q.eq("ownerId", ident.subject))
       .collect();
   },
 });
 
-export const create = mutation({
+/** ACTION: validate via Clerk, then write via a mutation */
+export const createChecked = action({
   args: {
     name: v.string(),
-    email: v.optional(v.string()),
+    email: v.string(),               // require email for this rule
     phone: v.optional(v.string()),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, { name, email, phone }) => {
     const ident = await ctx.auth.getUserIdentity();
     if (!ident) throw new Error("Not authenticated");
 
-    // (optional) duplicate-by-name guard
-    // const dup = await ctx.db.query("contacts")
-    //   .withIndex("by_owner", q => q.eq("ownerId", ident.subject))
-    //   .filter(q => q.eq(q.field("name"), args.name))
-    //   .first();
-    // if (dup) throw new Error("Contact with that name already exists.");
+    const emailLower = normalizeEmail(email);
+    if (!emailLower || !isValidEmail(emailLower)) {
+      throw new Error("Invalid email address.");
+    }
+
+    // Look up user in Clerk Admin API
+    const key = process.env.CLERK_SECRET_KEY;
+    if (!key) throw new Error("Missing CLERK_SECRET_KEY in Convex env.");
+
+    const res = await fetch(
+      `https://api.clerk.com/v1/users?email_address=${encodeURIComponent(emailLower)}`,
+      { headers: { Authorization: `Bearer ${key}` } }
+    );
+    if (!res.ok) throw new Error(`Clerk lookup failed: ${res.status} ${res.statusText}`);
+    const users = await res.json();
+    const match = users.find(u =>
+      (u.email_addresses || []).some(e => (e.email_address || "").toLowerCase() === emailLower)
+    );
+    if (!match) {
+      throw new Error("No registered user with this email was found.");
+    }
+
+    // call the mutation to insert
+    return await ctx.runMutation(api.contacts._createAfterCheck, {
+      ownerId: ident.subject,
+      name,
+      email: emailLower,
+      phone: phone?.trim() || undefined,
+      clerkUserId: match.id,
+    });    
+  },
+});
+
+/** MUTATION: assumes checks already done; just writes */
+export const _createAfterCheck = mutation({
+  args: {
+    ownerId: v.string(),
+    name: v.string(),
+    email: v.string(),
+    phone: v.optional(v.string()),
+    clerkUserId: v.string(),
+  },
+  handler: async (ctx, { ownerId, name, email, phone, clerkUserId }) => {
+    // dedupe per owner by email
+    const existing = await ctx.db
+      .query("contacts")
+      .withIndex("by_owner", (q) => q.eq("ownerId", ownerId))
+      .collect();
+    if (existing.some((c) => (c.emailLower || "") === email)) {
+      throw new Error("A contact with this email already exists.");
+    }
 
     return ctx.db.insert("contacts", {
-      ownerId: ident.subject,
-      name: args.name,
-      email: args.email,
-      phone: args.phone,
+      ownerId,
+      name: name.trim(),
+      email,
+      emailLower: email,     // store normalized
+      phone,
+      clerkUserId,
       createdAt: Date.now(),
     });
   },
 });
 
+/** Update (still a mutation; no network I/O) */
 export const update = mutation({
   args: {
     id: v.id("contacts"),
@@ -52,7 +105,27 @@ export const update = mutation({
     if (!ident) throw new Error("Not authenticated");
     const row = await ctx.db.get(id);
     if (!row || row.ownerId !== ident.subject) throw new Error("Not found");
-    await ctx.db.patch(id, { name, email, phone });
+
+    const emailLower = normalizeEmail(email);
+    if (emailLower && !isValidEmail(emailLower)) {
+      throw new Error("Invalid email address.");
+    }
+
+    // if email changed, you could require re-verify via an ACTION similarly
+    const siblings = await ctx.db
+      .query("contacts")
+      .withIndex("by_owner", (q) => q.eq("ownerId", ident.subject))
+      .collect();
+    if (emailLower && siblings.some((c) => c._id !== id && (c.emailLower || "") === emailLower)) {
+      throw new Error("Another contact already uses this email.");
+    }
+
+    await ctx.db.patch(id, {
+      name: name.trim(),
+      email: emailLower || undefined,
+      emailLower: emailLower || undefined,
+      phone: phone?.trim() || undefined,
+    });
   },
 });
 
