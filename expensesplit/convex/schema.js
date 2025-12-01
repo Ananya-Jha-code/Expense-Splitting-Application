@@ -22,9 +22,13 @@ export default defineSchema({
       email: v.optional(v.string()),
       emailLower: v.optional(v.string()),
       phone: v.optional(v.string()),
-      clerkUserId: v.optional(v.string()),
+      clerkUserId: v.optional(v.string()),  // Clerk user id if this contact is a real user
       createdAt: v.number(),
-    }).index("by_owner", ["ownerId"]),
+    })
+      .index("by_owner", ["ownerId"])
+      .index("by_clerkUserId", ["clerkUserId"]),
+    
+    
     
     
       groups: defineTable({
