@@ -53,5 +53,14 @@ export default defineSchema({
         contactId: v.id("contacts"),
         share: v.number(),          
       }).index("by_expense", ["expenseId"]),
+
+      messages: defineTable({
+        groupId: v.id("groups"),
+        senderId: v.string(),
+        senderName: v.string(),
+        text: v.string(),
+        createdAt: v.number(),
+      }).index("by_group_time", ["groupId", "createdAt"]),
+
     
 });
