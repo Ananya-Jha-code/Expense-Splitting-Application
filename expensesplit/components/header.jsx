@@ -162,6 +162,14 @@ const Header = () => {
                     Groups
                   </Button>
                 </Link>
+                <Link href="/messages">
+                  <Button
+                    variant="ghost"
+                    className="text-base text-pink-500 hover:text-pink-600 transition"
+                  >
+                    Messages
+                  </Button>
+                </Link>
                 <UserButton afterSignOutUrl="/" />
               </div>
             </SignedIn>
