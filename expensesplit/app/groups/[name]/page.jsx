@@ -4,9 +4,12 @@ import * as React from "react";
 import { useParams } from "next/navigation";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
+import { useUser } from "@clerk/nextjs";
+import GroupChat from "../../../components/groupchat";
 
 export default function GroupDetailPage() {
   const { name } = useParams(); // group name
+  const { user } = useUser();
   const group = useQuery(api.groups.getByName, { name });
   const groupId = group?._id;
 
@@ -236,6 +239,14 @@ export default function GroupDetailPage() {
               ))}
             </ul>
           )}
+        </div>
+      </section>
+      
+      {/* Group Chat */}
+      <section className="space-y-3">
+        <h2 className="text-xl font-semibold">Group Chat</h2>
+        <div className="h-96">
+          <GroupChat groupId={groupId} currentUserId={user?.id} />
         </div>
       </section>
     </main>

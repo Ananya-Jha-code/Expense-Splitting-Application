@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { SignedIn, SignedOut, SignInButton } from "@clerk/nextjs";
-import groupchathat from "@/components/GroupChat";
 import { useUser } from "@clerk/nextjs";
 
 export default function GroupsPage() {
