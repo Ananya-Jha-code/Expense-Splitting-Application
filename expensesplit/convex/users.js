@@ -149,10 +149,19 @@ export const search = query({
     
     const all = [...nameMatches, ...emailMatches, ...usernameMatches];
     const seen = new Set();
-    return all.filter((u) => {
+    return all
+    .filter((u) => {
       if (seen.has(u._id.id)) return false;
       seen.add(u._id.id);
       return true;
-    });
+    })
+    .map((u) => ({
+      _id: u._id,
+      name: u.name,
+      email: u.email,
+      username: u.username,
+      tokenIdentifier: u.tokenIdentifier   // ← IMPORTANT
+    }));
+
   },
 });

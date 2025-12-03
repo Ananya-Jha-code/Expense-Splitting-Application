@@ -27,31 +27,50 @@ export default defineSchema({
     }).index("by_owner", ["ownerId"]),
     
     
-      groups: defineTable({
-        ownerId: v.string(),       
-        name: v.string(),
-        createdAt: v.number(),
-      }).index("by_owner", ["ownerId"])
-      .index("by_owner_name", ["ownerId", "name"]),
-    
-      groupMembers: defineTable({
-        groupId: v.id("groups"),
-        contactId: v.id("contacts"),
-      }).index("by_group", ["groupId"])
-        .index("by_contact", ["contactId"]),
-    
-      expenses: defineTable({
-        groupId: v.id("groups"),
-        createdBy: v.string(),    
-        description: v.string(),
-        amount: v.number(),        
-        createdAt: v.number(),
-      }).index("by_group", ["groupId"]),
-    
-      splits: defineTable({
-        expenseId: v.id("expenses"),
-        contactId: v.id("contacts"),
-        share: v.number(),          
-      }).index("by_expense", ["expenseId"]),
+    groups: defineTable({
+      ownerId: v.string(),       
+      name: v.string(),
+      createdAt: v.number(),
+    }).index("by_owner", ["ownerId"])
+    .index("by_owner_name", ["ownerId", "name"]),
+  
+    groupMembers: defineTable({
+      groupId: v.id("groups"),
+      contactId: v.id("contacts"),
+    }).index("by_group", ["groupId"])
+      .index("by_contact", ["contactId"]),
+  
+    expenses: defineTable({
+      groupId: v.id("groups"),
+      createdBy: v.string(),    
+      description: v.string(),
+      amount: v.number(),        
+      createdAt: v.number(),
+    }).index("by_group", ["groupId"]),
+  
+    splits: defineTable({
+      expenseId: v.id("expenses"),
+      contactId: v.id("contacts"),
+      share: v.number(),          
+    }).index("by_expense", ["expenseId"]),
+
+    conversations: defineTable({
+      user1: v.string(),
+      user2: v.string(),
+      user1Name: v.string(),
+      user2Name: v.string(),
+      user1Deleted: v.boolean(), 
+      user2Deleted: v.boolean(),
+      lastMessageSenderId: v.optional(v.string()), 
+
+    }),
+
+    messages: defineTable({
+      conversationId: v.id("conversations"),
+      senderId: v.string(),
+      text: v.string(),
+      createdAt: v.number(),
+    })
+      .index("by_conversation", ["conversationId", "createdAt"])
     
 });
