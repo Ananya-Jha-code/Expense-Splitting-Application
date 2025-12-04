@@ -1,5 +1,6 @@
-import { query, mutation } from "./_generated/server";
+import { query, mutation, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
+import { internal } from "./_generated/api";
 
 
 // Normalize user ID
@@ -136,52 +137,126 @@ export const startConversation = mutation({
   }
 });
 
-// Creates new GC  w/ multiple members.
-export const createGroup = mutation({
-  args: {
-    groupName: v.string(),
-    memberIds: v.array(v.object({ id: v.string(), name: v.string() })), // arr of { id: ClerkID, name: string }
-  },
-  handler: async ({ db, auth }, { groupName, memberIds }) => {
-    const identity = await auth.getUserIdentity();
-    if (!identity) throw new Error("Not authenticated");
+// group chat general format
 
-    const userId = identity.tokenIdentifier;
-    const normalizedUserId = normalizeId(userId);
-    const now = Date.now();
 
-    // Ensure current user is in the list
-    if (!memberIds.some(m => normalizeId(m.id) === normalizedUserId)) {
-      memberIds.push({ 
-        id: userId, 
-        name: identity.name ?? identity.emailAddress 
-      });
-    }
 
-    if (memberIds.length < 2) {
-      throw new Error("A group must have at least two members.");
-    }
+// // Creates new GC  w/ multiple members.
+// export const createGroup = mutation({
+//   args: {
+//     groupName: v.string(),
+//     memberIds: v.array(v.object({ id: v.string(), name: v.string() })), // arr of { id: ClerkID, name: string }
+//   },
+//   handler: async ({ db, auth }, { groupName, memberIds }) => {
+//     const identity = await auth.getUserIdentity();
+//     if (!identity) throw new Error("Not authenticated");
+
+//     const userId = identity.tokenIdentifier;
+//     const normalizedUserId = normalizeId(userId);
+//     const now = Date.now();
+
+//     // Ensure current user is in the list
+//     if (!memberIds.some(m => normalizeId(m.id) === normalizedUserId)) {
+//       memberIds.push({ 
+//         id: userId, 
+//         name: identity.name ?? identity.emailAddress 
+//       });
+//     }
+
+//     if (memberIds.length < 2) {
+//       throw new Error("A group must have at least two members.");
+//     }
     
+//     // create new convo document
+//     const conversationId = await db.insert("conversations", {
+//       isGroup: true,
+//       name: groupName,
+//       lastMessageSenderId: undefined,
+//     });
+
+//     // create conversationMember entries for all members
+//     for (const member of memberIds) {
+//       await db.insert("conversationMembers", {
+//         conversationId: conversationId,
+//         memberId: normalizeId(member.id),
+//         memberName: member.name,
+//         deleted: false,
+//         lastReadTime: now,
+//       });
+//     }
+
+//     return { conversationId };
+//   }
+// });
+
+
+export const internalCreateGroupChat = internalMutation({
+    args: {
+        groupName: v.string(),
+        // Requires an array of full user info for chat members
+        memberInfo: v.array(v.object({ 
+            id: v.string(), // Full Clerk ID
+            name: v.string() 
+        })),
+   },
+    handler: async ({ db }, { groupName, memberInfo }) => {
+        const now = Date.now();
+    
+        if (memberInfo.length < 2) {
+            throw new Error("A group chat must have at least two members.");
+        }
     // create new convo document
-    const conversationId = await db.insert("conversations", {
-      isGroup: true,
-      name: groupName,
-      lastMessageSenderId: undefined,
-    });
-
+        const conversationId = await db.insert("conversations", {
+            isGroup: true,
+            name: groupName,
+            lastMessageSenderId: undefined,
+        });
     // create conversationMember entries for all members
-    for (const member of memberIds) {
-      await db.insert("conversationMembers", {
-        conversationId: conversationId,
-        memberId: normalizeId(member.id),
-        memberName: member.name,
-        deleted: false,
-        lastReadTime: now,
-      });
-    }
+        for (const member of memberInfo) {
+            await db.insert("conversationMembers", {
+                conversationId: conversationId,
+                memberId: normalizeId(member.id),
+                memberName: member.name,
+                deleted: false,
+                lastReadTime: now,
+            });
+        }
 
-    return { conversationId };
-  }
+        return { conversationId };
+    }
+});
+
+
+// Public mutation for your messages page (to manually create a chat).
+// This wrapper handles auth and calls the internal function.
+export const createGroup = mutation({
+    args: {
+        groupName: v.string(),
+        memberIds: v.array(v.object({ id: v.string(), name: v.string() })), // arr of { id: ClerkID, name: string }
+    },
+    handler: async (ctx, args) => {
+        const identity = await ctx.auth.getUserIdentity();
+        if (!identity) throw new Error("Not authenticated");
+    
+        // Ensure current user is in the memberInfo array being passed to the internal function
+        let memberInfo = args.memberIds;
+        const currentUserId = identity.tokenIdentifier;
+        if (!memberInfo.some(m => m.id === currentUserId)) {
+            memberInfo = [
+                ...memberInfo,
+                { 
+                    id: currentUserId, 
+                    name: identity.name ?? identity.emailAddress 
+                }
+            ];
+        }
+    
+    // Call the internal core creation function
+        return ctx.runMutation(internal.messages.internalCreateGroupChat, {
+            groupName: args.groupName,
+            memberInfo: memberInfo,
+        });
+    }
 });
 
 
