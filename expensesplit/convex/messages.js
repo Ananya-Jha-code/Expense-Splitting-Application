@@ -206,7 +206,23 @@ export const getMessages = query({
       .order("asc", { indexField: "createdAt" })
       .collect();
 
-    return messages;
+    const augmentedMessages = await Promise.all(
+        messages.map(async (m) => {
+        const normalizedSenderId = normalizeId(m.senderId); 
+
+        const senderMembership = await db
+            .query("conversationMembers")
+            .withIndex("by_conversation", (q) => q.eq("conversationId", conversationId))
+            .filter((q) => q.eq(q.field("memberId"), normalizedSenderId))
+             .first();
+        return {
+            ...m,
+            senderName: senderMembership?.memberName || "Unknown User",
+        };
+      })
+    );
+
+    return augmentedMessages;
   }
 });
 

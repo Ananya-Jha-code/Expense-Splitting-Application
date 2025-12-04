@@ -7,6 +7,48 @@ import { SignedIn, SignedOut, SignInButton, useUser } from "@clerk/nextjs";
 import UserSearchBar from "@/components/UserSearchBar";
 import { Edit2, Users, ArrowLeft } from "react-feather"; 
 
+
+// Utility to generate initials from a name (e.g., "Sherab Lama" -> "SL")
+const getInitials = (name) => {
+    if (!name) return "?";
+    // Split by space, filter out empty strings, map to first letter, join, and uppercase.
+    const parts = name.split(/\s+/).filter(Boolean);
+    if (parts.length === 1) {
+        return parts[0].substring(0, 2).toUpperCase();
+    }
+    return parts.map(part => part[0]).join('').substring(0, 2).toUpperCase();
+};
+
+// Component to render the circular avatar with initials
+const AvatarInitials = ({ name }) => {
+    const initials = getInitials(name);
+    
+    // Simple, consistent styling for a 32x32 circle with white text
+    return (
+        <div 
+            className="w-8 h-8 rounded-full bg-gray-500 text-white flex items-center justify-center text-xs font-semibold flex-shrink-0"
+        >
+            {initials}
+        </div>
+    );
+};
+const MessageBubble = ({ text, isMe }) => {
+    // This is your original message bubble styling
+    return (
+        <div
+            className={`
+                px-4 py-2 break-words
+                max-w-full 
+                ${isMe ? "bg-blue-500 text-white" : "bg-gray-200 text-black"}
+                rounded-2xl
+                ${isMe ? "rounded-br-none" : "rounded-bl-none"}
+            `}
+        >
+            {text}
+        </div>
+    );
+};
+
 export default function MessagesPage() {
   const { user } = useUser();
 
@@ -36,6 +78,8 @@ export default function MessagesPage() {
   const [showSearch, setShowSearch] = React.useState(false); // Controls the main search panel visibility
   const [isCreatingGroup, setIsCreatingGroup] = React.useState(false); // Controls if we are in Group creation mode
   const [groupName, setGroupName] = React.useState("");
+  const [deleteTarget, setDeleteTarget] = React.useState(null);
+  
 
   /**
    * Cleans up the creation state.
@@ -368,24 +412,28 @@ export default function MessagesPage() {
                     const fullClerkId = String(m.senderId ?? ""); 
                     const shortUserId = String(user?.id ?? "");
                     const isMe = fullClerkId.includes(shortUserId);
-
+                    const showAvatar = !isMe;   
+                    const senderName = m.senderName || "Unknown User";
                     return (
                         <div
                         key={m._id}
                         className={`w-full flex ${isMe ? "justify-end" : "justify-start"}`}
-                        title={`senderId: ${fullClerkId} (you: ${shortUserId})`}
+                        title={`${senderName}`} // (ID: ${fullClerkId})
                         >
-                        <div
-                            className={`
-                            px-4 py-2 break-words
-                            max-w-[65%]
-                            ${isMe ? "bg-blue-500 text-white" : "bg-gray-200 text-black"}
-                            rounded-2xl
-                            ${isMe ? "rounded-br-none" : "rounded-bl-none"}
-                            `}
-                        >
-                            {m.text}
-                        </div>
+                        {showAvatar && (
+                            <div className="mr-2 mt-auto">
+                                <AvatarInitials name={senderName} />
+                             </div>
+                        )}
+                        
+                        <div className={`flex flex-col max-w-[65%] ${isMe ? "items-end" : "items-start"}`}>
+                            {activeChat.isGroup && !isMe && (
+                                 <p className="text-xs text-gray-600 mb-0.5 px-1">{senderName}</p>
+                             )}
+                            <MessageBubble text={m.text} isMe={isMe} />
+                         </div>
+
+                            {!showAvatar && <div className="w-8 mr-2 flex-shrink-0" />}
                         </div>
                     );
                 })
