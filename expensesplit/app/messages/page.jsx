@@ -176,22 +176,28 @@ export default function MessagesPage() {
     }
   }
 
-  async function onDeleteConversation(e, conversationId) {
-    e.stopPropagation(); // Prevents the chat from opening when you click delete
 
-    if (!confirm("Are you sure you want to delete this conversation? This will only remove it from your view.")) return;
+  async function confirmDelete() {
+    if (!deleteTarget) return;
+    const conversationId = deleteTarget.id;
+    setDeleteTarget(null); // Close the modal immediately
 
     try {
-      await deleteConversation({ conversationId });
-      
-      // If we deleted the chat that is currently open, close the panel
-      if (activeChatId === conversationId) {
-        setActiveChatId(null);
-      }
+        await deleteConversation({ conversationId });
+        if (activeChatId === conversationId) {
+            setActiveChatId(null);
+        }
     } catch (err) {
-      setError("Failed to delete conversation.");
+        setError("Failed to delete conversation.");
     }
-  }
+}
+
+async function triggerDeleteModal(e, conversationId, conversationName) {
+    e.stopPropagation(); // Prevents the chat from opening when you click delete
+
+    // Set the target state to show the modal
+    setDeleteTarget({ id: conversationId, name: conversationName });
+}
 
   const isLoadingConversations = conversations === undefined;
   
@@ -355,7 +361,7 @@ export default function MessagesPage() {
 
                         {/* TRASH ICON - Always Visible & Right Aligned by justify-between */}
                         <button
-                          onClick={(e) => onDeleteConversation(e, c._id)}
+                          onClick={(e) => triggerDeleteModal(e, c._id, c.name)}
                           className="text-gray-400 hover:text-red-600 p-1 flex-shrink-0" 
                           title="Delete Conversation"
                         >
@@ -459,6 +465,35 @@ export default function MessagesPage() {
           </>
         )}
       </div>
+
+      {deleteTarget && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+            <div className="bg-white rounded-2xl shadow-xl p-6 max-w-sm w-full text-center space-y-4">
+                <h2 className="text-lg font-semibold text-red-600">
+                    Delete Conversation?
+                </h2>
+                <p className="text-gray-700">
+                    Are you sure you want to delete the conversation with{" "}
+                    <span className="font-semibold">{deleteTarget.name}</span>? <br />
+                    This will only delete it for you.
+                </p>
+                <div className="flex justify-center gap-4 pt-2">
+                    <button
+                        onClick={() => setDeleteTarget(null)}
+                        className="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300 transition"
+                    >
+                     Cancel
+                    </button>
+                    <button
+                        onClick={confirmDelete}
+                        className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition"
+                    >
+                    Delete
+                    </button>
+                </div>
+            </div>
+        </div>
+     )}
 
       {/* Error modal */}
       {error && (

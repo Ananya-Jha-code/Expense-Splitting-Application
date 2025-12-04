@@ -61,7 +61,13 @@ export const listConversations = query({
       // 4. unread status
       // check if the last message was sent by someone other than the current user
       // AND if  conversation has a last message sender ID set.
-      const hasUnread = convo.lastMessageSenderId && convo.lastMessageSenderId !== userId;
+      const lastMessageTime = lastMessage?.createdAt ?? 0;
+      const isLastMessageFromMe = lastMessage?.senderId && lastMessage.senderId === userId;
+      
+      const hasUnread = 
+        lastMessage !== null && 
+        !isLastMessageFromMe && 
+        membership.lastReadTime < lastMessageTime;
       
       data.push({
         _id: convo._id,
@@ -340,28 +346,73 @@ export const markAsRead = mutation({
   handler: async ({ db, auth }, { conversationId }) => {
     const identity = await auth.getUserIdentity();
     if (!identity) throw new Error("Not authenticated");
+    const userId = identity.tokenIdentifier;
+    const normalizedUserId = normalizeId(userId);
 
-    const normalizedUserId = normalizeId(identity.tokenIdentifier);
+    const [convo, membership] = await Promise.all([
+        db.get(conversationId),
+        db
+            .query("conversationMembers")
+            .withIndex("by_conversation", (q) => q.eq("conversationId", conversationId))
+            .filter((q) => q.eq(q.field("memberId"), normalizedUserId))
+            .first(),
+    ]);
 
-    const membership = await db
-      .query("conversationMembers")
-      .withIndex("by_conversation", (q) => q.eq("conversationId", conversationId))
-      .filter((q) => q.eq(q.field("memberId"), normalizedUserId))
-      .first();
-
-    if (!membership) {
+    if (!convo || !membership) {
         throw new Error("Not authorized to mark this conversation as read");
     }
 
-    // clear the lastMessageSenderId on the main conversation document
-    await db.patch(conversationId, {
-      lastMessageSenderId: undefined
-    });
-    
-    // update lastReadTime on the user's membership
+    // If the conversation already has no unread indicator, we're done.
+    if (convo.lastMessageSenderId === undefined) {
+        return { success: true };
+    }
+
+    // 2. Update the current user's membership (marks their view as read)
+    const now = Date.now();
     await db.patch(membership._id, {
-        lastReadTime: Date.now()
+        lastReadTime: now
     });
+
+    // If the user who sent the last message is the one reading it, 
+    // it should NOT clear the unread status for others. We just update their lastReadTime.
+    if (convo.lastMessageSenderId === userId) {
+        return { success: true };
+    }
+
+    // 3. Check if ALL other active members have now read the last message.
+    // Get the last message to find its timestamp. 
+    const lastMessage = await db
+        .query("messages")
+        .withIndex("by_conversation", (q) =>
+         q.eq("conversationId", conversationId)
+        )
+        .order("desc")
+        .first();
+
+    // Safety check: if there's an unread status but no messages, something is wrong. Exit.
+    if (!lastMessage) {
+        await db.patch(conversationId, { lastMessageSenderId: undefined });
+        return { success: true };
+    }
+
+    // Get all other members in the conversation, excluding the sender of the last message.
+    const allOtherMembers = await db
+        .query("conversationMembers")
+        .withIndex("by_conversation", (q) => q.eq("conversationId", conversationId))
+        .filter((q) => q.eq(q.field("deleted"), false)) // Only check active members
+        .filter((q) => q.neq(q.field("memberId"), normalizeId(convo.lastMessageSenderId))) // Exclude the sender
+        .collect();
+
+    // Check if ALL of these members have a lastReadTime greater than or equal to the last message's time.
+    const allOthersHaveRead = allOtherMembers.every(m => m.lastReadTime >= lastMessage.createdAt);
+
+    // 4. If everyone else has read it, clear the unread indicator for the conversation itself.
+    if (allOthersHaveRead) {
+        await db.patch(conversationId, {
+            lastMessageSenderId: undefined
+        });
+    }
+
 
     return { success: true };
   }
