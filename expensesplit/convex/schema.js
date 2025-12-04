@@ -31,6 +31,7 @@ export default defineSchema({
       ownerId: v.string(),       
       name: v.string(),
       createdAt: v.number(),
+      conversationId: v.optional(v.id("conversations")),
     }).index("by_owner", ["ownerId"])
     .index("by_owner_name", ["ownerId", "name"]),
   

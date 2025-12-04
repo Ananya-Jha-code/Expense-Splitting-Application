@@ -9,13 +9,23 @@ import { SignedIn, SignedOut, SignInButton } from "@clerk/nextjs";
 export default function GroupsPage() {
   const groups = useQuery(api.groups.list);
   const create = useMutation(api.groups.create);
+  const allContacts = useQuery(api.contacts.list);
   const removeGroup = useMutation(api.groups.remove);
   const [deleteTarget, setDeleteTarget] = React.useState(null);
 
   const [name, setName] = React.useState("");
+  const [selectedContactIds, setSelectedContactIds] = React.useState([]);
   const [error, setError] = React.useState(""); // for modal message
 
   const isLoading = groups === undefined;
+
+  const toggleContact = (contactId) => {
+    setSelectedContactIds(prev =>
+      prev.includes(contactId)
+        ? prev.filter(id => id !== contactId)
+        : [...prev, contactId]
+    );
+  };
 
   async function onCreate(e) {
     e.preventDefault();
@@ -23,7 +33,7 @@ export default function GroupsPage() {
     // const id = await create({ name: name.trim() });
     // setName("");
     try {
-      const result = await create({ name: name.trim() });
+      const result = await create({ name: name.trim(), initialContactIds: selectedContactIds });
 
       if (!result?.success) {
         setError(result?.message || "Failed to create group.");
@@ -31,6 +41,7 @@ export default function GroupsPage() {
       }
 
       setName("");
+      setSelectedContactIds([]);
     } catch {
       // fallback just in case something unexpected happens
       setError("Something went wrong. Please try again.");
@@ -49,6 +60,8 @@ export default function GroupsPage() {
     }
   }
 
+  const isCreateDisabled = !name.trim() || selectedContactIds.length === 0;
+
   return (
     <main className="min-h-screen pt-20 mx-auto max-w-2xl p-6 space-y-6">
       <h1 className="text-2xl font-semibold">Groups</h1>
@@ -59,13 +72,54 @@ export default function GroupsPage() {
       </SignedOut>
 
       <SignedIn>
-        <form onSubmit={onCreate} className="flex gap-2">
-          <input className="border rounded px-3 py-2 flex-1"
-                 placeholder="New group name"
-                 value={name} onChange={e => setName(e.target.value)} />
-          <button className="border rounded px-4 py-2 bg-black text-white">Create</button>
-        </form>
+        <form onSubmit={onCreate} className="space-y-4 p-4 border rounded-lg bg-gray-50">
+          <h2 className="text-xl font-medium">Create New Group 💬</h2>
 
+          <label className="block space-y-1">
+            <span className="text-sm font-medium">Group Name</span>
+            <input className="border rounded px-3 py-2 w-full"
+              placeholder="e.g., Hiking Buddies"
+              value={name} onChange={e => setName(e.target.value)} />
+          </label>
+          
+          <div className="space-y-2">
+            <span className="text-sm font-medium block">Initial Members</span>
+            <div className="max-h-40 overflow-y-auto border p-2 rounded bg-white">
+              {allContacts === undefined ? (
+                <p className="text-gray-500 text-sm">Loading contacts...</p>
+              ) : allContacts.length === 0 ? (
+                <p className="text-gray-500 text-sm">No contacts found. Add some first!</p>
+              ) : (
+                allContacts.map(contact => (
+                  <div key={contact._id} 
+                    className="flex items-center justify-between p-1 cursor-pointer hover:bg-gray-100"
+                    onClick={() => toggleContact(contact._id)}
+                  >
+                    <span className="text-sm">{contact.name}</span>
+                    <input 
+                      type="checkbox"
+                      checked={selectedContactIds.includes(contact._id)}
+                      readOnly 
+                      className="form-checkbox h-4 w-4 text-black rounded"
+                    />
+                  </div>
+                ))
+              )}
+            </div>
+        </div>
+
+        <button 
+         className={`border rounded px-4 py-2 w-full transition ${
+          isCreateDisabled 
+            ? "bg-gray-300 text-gray-500 cursor-not-allowed" 
+            : "bg-black text-white hover:bg-gray-800"
+          }`}
+          disabled={isCreateDisabled}
+        >
+          Create Group ({selectedContactIds.length} member{selectedContactIds.length !== 1 ? 's' : ''})
+        </button>
+        </form>
+        
         <div className="rounded border mt-4">
           {isLoading ? (
             <div className="p-4 text-gray-500">Loading…</div>

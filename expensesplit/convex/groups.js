@@ -43,43 +43,51 @@ export const create = mutation({
       //throw new Error(`You already have a group called "${trimmedName}"`);
     }
 
+    if (initialContactIds.length === 0) {
+        return { success: false, message: `Please select at least one contact for the group.` };
+    }
+
     const groupId = await ctx.db.insert("groups", {
       ownerId,
       name,
       createdAt: Date.now(),
+      conversationId: undefined,
     });
 
-    const contactMembers = await Promise.all(
+    const ownerChatInfo = { 
+        id: ident.tokenIdentifier, 
+        name: ident.name ?? ident.emailAddress 
+    };
+
+    const contactChatInfo = (await Promise.all(
         initialContactIds.map(async (contactId) => {
             const contact = await ctx.db.get(contactId);
             if (contact) {
-                // Add member to the groupMembers table
+                // Insert the group member link using the REAL groupId
                 await ctx.db.insert("groupMembers", { groupId, contactId });
-                
-                // Return data for the chat creation (Assumes 'clerkId' and 'name' exist on contact)
-                return { id: contact.clerkId, name: contact.name }; 
+                const memberIdForChat = contact.clerkUserId || contact._id;
+                // Return data for the chat creation
+                return { 
+                    id: memberIdForChat, 
+                    name: contact.name 
+                };
             }
             return null;
         })
-    );
+    )).filter(Boolean);
+
+    let allChatMembers = [ownerChatInfo, ...contactChatInfo];
+    const uniqueChatMembers = Array.from(new Map(allChatMembers.map(m => [m.id, m])).values());
+
     
-    const validContactMembers = contactMembers.filter(Boolean);
-
-    // Add the current user (owner) to the list of chat members
-    const allChatMembers = [
-        { id: ident.tokenIdentifier, name: ident.name ?? ident.emailAddress },
-        ...validContactMembers
-    ];
-
-    // --- 4. Create the Group Chat (Internal Call) ---
     const { conversationId } = await ctx.runMutation(internal.messages.internalCreateGroupChat, {
         groupName: trimmedName,
-        memberInfo: allChatMembers,
+        memberInfo: uniqueChatMembers,
     });
-    
-    // Optionally, store the conversationId on the social group document
+
     await ctx.db.patch(groupId, { conversationId });
 
+    
     return { success: true, id: groupId };
 
 

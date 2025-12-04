@@ -67,7 +67,7 @@ export default function GroupDetailPage() {
     <main className="mx-auto max-w-3xl p-6 space-y-8">
       <h1 className="text-2xl font-semibold">{group?.name}</h1>
 
-      {/* Members */}
+      {/* Members
       <form
   onSubmit={async (e) => {
     e.preventDefault();
@@ -90,7 +90,7 @@ export default function GroupDetailPage() {
     ))}
   </select>
   <button className="border rounded px-4 py-2">Add</button>
-</form>
+</form> */}
 
 
       {/* Expenses */}
