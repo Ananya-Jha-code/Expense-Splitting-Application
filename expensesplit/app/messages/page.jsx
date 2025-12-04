@@ -5,17 +5,15 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { SignedIn, SignedOut, SignInButton, useUser } from "@clerk/nextjs";
 import UserSearchBar from "@/components/UserSearchBar";
-import { Edit2 } from "react-feather";  // <-- import Feather icon
-
+import { Edit2, Users, ArrowLeft } from "react-feather"; 
 
 export default function MessagesPage() {
   const { user } = useUser();
 
-  // left sidebar: list of conversations
+  // --- Convex Hooks ---
   const conversations = useQuery(api.messages.listConversations);
-  console.log("Aditi's Conversations List:", conversations);
+  // console.log("Conversations List:", conversations);
 
-  // for chat right panel
   const [activeChatId, setActiveChatId] = React.useState(null);
 
   const messages = useQuery(
@@ -23,38 +21,99 @@ export default function MessagesPage() {
     activeChatId ? { conversationId: activeChatId } : "skip"
   );
 
+  // New Mutation for Group Chat
+  const createGroup = useMutation(api.messages.createGroup);
+  // Existing Mutations (now handle DMs/Groups via membership)
   const startConversation = useMutation(api.messages.startConversation);
   const sendMessage = useMutation(api.messages.sendMessage);
   const deleteConversation = useMutation(api.messages.deleteConversation); 
   const markAsRead = useMutation(api.messages.markAsRead);
 
-  const [selectedUser, setSelectedUser] = React.useState(null);
+  // --- Local State for UI ---
+  const [selectedMembers, setSelectedMembers] = React.useState([]); // Tracks all users for a new group/DM
   const [messageInput, setMessageInput] = React.useState("");
   const [error, setError] = React.useState("");
-  const [showSearch, setShowSearch] = React.useState(false);
+  const [showSearch, setShowSearch] = React.useState(false); // Controls the main search panel visibility
+  const [isCreatingGroup, setIsCreatingGroup] = React.useState(false); // Controls if we are in Group creation mode
+  const [groupName, setGroupName] = React.useState("");
+
+  /**
+   * Cleans up the creation state.
+   */
+  const resetCreationState = () => {
+    setSelectedMembers([]);
+    setGroupName("");
+    setShowSearch(false);
+    setIsCreatingGroup(false);
+  };
+  
+  /**
+   * Handles the selection of a user from the UserSearchBar component.
+   */
+  const handleUserSelect = (selectedUser) => {
+    if (selectedUser) {
+      // If we are creating a group, add to the selectedMembers array
+      if (isCreatingGroup) {
+        // Prevent adding the same user twice
+        if (!selectedMembers.find(m => m.tokenIdentifier === selectedUser.tokenIdentifier)) {
+          setSelectedMembers((prev) => [...prev, selectedUser]);
+        }
+      } else {
+        // If not creating a group, this is a DM attempt, so only select one.
+        setSelectedMembers([selectedUser]);
+      }
+    }
+  };
 
 
-  async function onStartConversation() {
-    if (!selectedUser) return;
+  /**
+   * Starts a DM or a Group Chat based on the current state.
+   */
+  async function onCreateConversation() {
+    if (selectedMembers.length === 0) return;
 
     try {
-      console.log("Starting conversation with:", selectedUser);
+      let result;
+      
+      if (isCreatingGroup) {
+        // --- GROUP CHAT LOGIC ---
+        if (selectedMembers.length < 2) {
+            setError("A group chat must have at least two members (including yourself).");
+            return;
+        }
+        if (!groupName.trim()) {
+            setError("Group name is required.");
+            return;
+        }
 
-      const result = await startConversation({
-        otherUserId: selectedUser.tokenIdentifier,
-        otherUserName: selectedUser.name, 
-      });
-      console.log("Conversation started:", result);
+        const memberData = selectedMembers.map(m => ({ 
+            id: m.tokenIdentifier, 
+            name: m.name 
+        }));
 
+        result = await createGroup({
+            groupName: groupName.trim(),
+            memberIds: memberData,
+        });
+
+      } else {
+        // --- DM LOGIC ---
+        if (selectedMembers.length !== 1) return;
+        
+        const otherUser = selectedMembers[0];
+        
+        result = await startConversation({
+          otherUserId: otherUser.tokenIdentifier,
+          otherUserName: otherUser.name,
+        });
+      }
 
       setActiveChatId(result.conversationId);
-      setSelectedUser(null);
-      setShowSearch(false);
+      resetCreationState();
 
     } catch (err){
-      console.error("Failed to start conversation:", err);
-
-      setError("Failed to start conversation.");
+      console.error("Failed to create conversation:", err);
+      setError("Failed to create conversation. " + (err.message || ""));
     }
   }
 
@@ -76,7 +135,7 @@ export default function MessagesPage() {
   async function onDeleteConversation(e, conversationId) {
     e.stopPropagation(); // Prevents the chat from opening when you click delete
 
-    if (!confirm("Are you sure you want to delete this conversation?")) return;
+    if (!confirm("Are you sure you want to delete this conversation? This will only remove it from your view.")) return;
 
     try {
       await deleteConversation({ conversationId });
@@ -91,20 +150,114 @@ export default function MessagesPage() {
   }
 
   const isLoadingConversations = conversations === undefined;
+  
+  // Get the display name for the active chat panel title
+  const activeChat = conversations?.find((c) => c._id === activeChatId);
+
+
+  // --- Render Functions ---
+
+  const renderCreationPanel = () => {
+    const isReadyToCreate = isCreatingGroup 
+      ? selectedMembers.length >= 2 && groupName.trim()
+      : selectedMembers.length === 1;
+
+    // The single user for DM mode
+    const selectedDMUser = selectedMembers[0];
+      
+    return (
+      <div className="overflow-hidden p-4 transition-all duration-300 border-b">
+        {/* Back button and title */}
+        <div className="flex items-center mb-4">
+            <button
+                onClick={resetCreationState}
+                className="p-1 rounded hover:bg-gray-200 mr-3"
+            >
+                <ArrowLeft size={20} />
+            </button>
+            <h3 className="text-lg font-semibold">
+                {isCreatingGroup ? "New Group Chat" : "New Direct Message"}
+            </h3>
+        </div>
+        
+        {/* Group Name Input */}
+        {isCreatingGroup && (
+            <input
+                type="text"
+                placeholder="Enter Group Name"
+                value={groupName}
+                onChange={(e) => setGroupName(e.target.value)}
+                className="w-full border rounded px-3 py-2 mb-3"
+            />
+        )}
+        
+        {/* User Search Bar */}
+        <UserSearchBar onSelect={handleUserSelect} />
+        
+        {/* Selected Members Preview */}
+        {isCreatingGroup && selectedMembers.length > 0 && (
+            <div className="mt-3">
+                <p className="text-sm font-medium mb-1">Members ({selectedMembers.length}):</p>
+                <div className="flex flex-wrap gap-2">
+                    {selectedMembers.map((member) => (
+                        <span key={member.tokenIdentifier} className="bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-0.5 rounded-full flex items-center">
+                            {member.name}
+                            <button 
+                                onClick={() => setSelectedMembers(selectedMembers.filter(m => m.tokenIdentifier !== member.tokenIdentifier))}
+                                className="ml-1 text-blue-800 hover:text-red-500"
+                            >
+                                &times;
+                            </button>
+                        </span>
+                    ))}
+                </div>
+            </div>
+        )}
+        
+        {/* Call to Action Button */}
+        {isReadyToCreate && (
+            <button
+                onClick={onCreateConversation}
+                className="mt-4 w-full bg-black text-white py-2 rounded disabled:bg-gray-400"
+                disabled={!isReadyToCreate}
+            >
+                {isCreatingGroup 
+                    ? `Create Group "${groupName.trim() || '...'}"`
+                    : `Start Chat with ${selectedDMUser.name}`
+                }
+            </button>
+        )}
+      </div>
+    );
+  };
+
 
   return (
     <main className="w-full h-screen flex overflow-hidden">
       {/* LEFT SIDEBAR */}
       <div className="w-1/3 border-r flex flex-col">
         <div className="p-4 border-b flex justify-between items-center">
+          <h1 className="text-xl font-semibold">Messages</h1>
+          <div className="flex gap-2">
+            
+            {/* New Group Button */}
             <button
-                onClick={() => setShowSearch((prev) => !prev)}
+                onClick={() => { setShowSearch(true); setIsCreatingGroup(true); setSelectedMembers([]); setGroupName(""); }}
                 className="p-2 rounded hover:bg-gray-100"
-                title="New Message"
-                >
+                title="New Group Chat"
+            >
+                <Users size={26} /> 
+            </button>
+            
+            {/* New DM Button */}
+            <button
+                onClick={() => { setShowSearch(true); setIsCreatingGroup(false); setSelectedMembers([]); setGroupName(""); }}
+                className="p-2 rounded hover:bg-gray-100"
+                title="New Direct Message"
+            >
                 <Edit2 size={26} /> 
             </button>
-          <h1 className="text-xl font-semibold">Messages</h1>
+          </div>
         </div>
 
         <SignedOut>
@@ -115,20 +268,10 @@ export default function MessagesPage() {
         </SignedOut>
 
         <SignedIn>
-          {showSearch && (
-            <div className="overflow-hidden p-4 transition-all duration-300">
-                <UserSearchBar onSelect={setSelectedUser} />
-                {selectedUser && (
-                <button
-                    onClick={onStartConversation}
-                    className="mt-2 w-full bg-black text-white py-2 rounded"
-                >
-                    Start Chat with {selectedUser.name}
-                </button>
-                )}
-            </div>
-          )}
+          {/* Conversation Creation/Search Panel */}
+          {showSearch && renderCreationPanel()}
 
+          {/* Conversation List */}
           <div className="flex-1 overflow-y-auto min-h-0">
             {isLoadingConversations ? (
               <p className="p-4 text-gray-500">Loading…</p>
@@ -145,9 +288,7 @@ export default function MessagesPage() {
                             await markAsRead({ conversationId: c._id });
                         }
                     }}
-
-                    // Ensure the main container is a flex container
-                    className={`p-4 cursor-pointer border-b hover:bg-gray-50 flex justify-between items-start ${ 
+                    className={`p-4 cursor-pointer border-b hover:bg-gray-50 flex items-start ${ 
                       activeChatId === c._id ? "bg-gray-100" : ""
                     }`}
                   >
@@ -156,21 +297,21 @@ export default function MessagesPage() {
                       <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 mr-3 flex-shrink-0"></div>
                     )}
 
-                    {/* 1. Main Content Area (Takes all available space) */}
+                    {/* Main Content Area */}
                     <div className="flex-1 min-w-0">
                       
-                      {/* 1a. Name and Icon (Nested Horizontal Flex) */}
+                      {/* Name and Icon */}
                       <div className="flex justify-between items-center">
                         
-                        {/* Name (Set to truncate if too long) */}
-                        <div className="font-medium truncate mr-2">
-                          {c.otherUser.name}
+                        {/* Conversation Name (Now uses c.name, which is the group name or other user name) */}
+                        <div className="font-medium truncate mr-2 flex items-center">
+                            {c.isGroup && <Users size={16} className="mr-1 text-gray-500" />}
+                            {c.name}
                         </div>
 
                         {/* TRASH ICON - Always Visible & Right Aligned by justify-between */}
                         <button
                           onClick={(e) => onDeleteConversation(e, c._id)}
-                          // Removed opacity classes to make it always visible
                           className="text-gray-400 hover:text-red-600 p-1 flex-shrink-0" 
                           title="Delete Conversation"
                         >
@@ -182,7 +323,7 @@ export default function MessagesPage() {
                         </button>
                       </div>
 
-                      {/* 1b. Message Preview (Below Name) */}
+                      {/* Message Preview (Below Name) */}
                       <div className="text-sm text-gray-500 truncate mt-0.5">
                         {c.lastMessage || "No messages yet"}
                       </div>
@@ -197,18 +338,17 @@ export default function MessagesPage() {
 
       {/* RIGHT CHAT PANEL */}
       <div className="flex-1 flex flex-col min-h-0">
-        {!activeChatId ? (
+        {!activeChatId || !activeChat ? (
           <div className="flex flex-1 items-center justify-center text-gray-500">
             Select a conversation to start messaging.
           </div>
         ) : (
           <>
             <div className="p-4 border-b flex justify-between items-center">
-              <h2 className="font-semibold">
-                {
-                  conversations?.find((c) => c._id === activeChatId)
-                    ?.otherUser?.name
-                }
+              {/* Uses the conversation name derived on the server */}
+              <h2 className="font-semibold flex items-center">
+                {activeChat.isGroup && <Users size={20} className="mr-2 text-gray-500" />}
+                {activeChat.name}
               </h2>
             </div>
 
@@ -216,34 +356,24 @@ export default function MessagesPage() {
             {/* Messages */}
             <div
             className="flex-1 overflow-y-auto p-4 flex flex-col gap-3 min-h-0"
-            // optional: ensure scrolling starts at bottom; you can keep/remove
-            // ref={messagesContainerRef}
+            // You may need to reverse the order for the messages array 
+            // and use `flex-col-reverse` on the container to anchor to the bottom 
+            // without a ref, but for now, we leave it as is.
             >
             {messages === undefined ? (
                 <p>Loading…</p>
             ) : (
                 messages?.map((m) => {
-                    // The full sender ID from the DB
+                    // This logic remains the same: compare sender ID to current user ID
                     const fullClerkId = String(m.senderId ?? ""); 
-                    // The short ID of the current user (Aditi)
                     const shortUserId = String(user?.id ?? "");
-
-                    // Check if the full DB ID includes the short client ID
                     const isMe = fullClerkId.includes(shortUserId);
-
-                    // TEMP DEBUG — remove after confirming things work
-                    console.log("Message Debug:", { 
-                        text: m.text, 
-                        messageSenderId: fullClerkId, 
-                        receiverCurrentUserId: shortUserId, 
-                        isMe: isMe 
-                    });
 
                     return (
                         <div
                         key={m._id}
                         className={`w-full flex ${isMe ? "justify-end" : "justify-start"}`}
-                        title={`senderId: ${fullClerkId} (you: ${shortUserId})`} // small hover debug
+                        title={`senderId: ${fullClerkId} (you: ${shortUserId})`}
                         >
                         <div
                             className={`

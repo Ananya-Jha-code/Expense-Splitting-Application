@@ -55,15 +55,23 @@ export default defineSchema({
     }).index("by_expense", ["expenseId"]),
 
     conversations: defineTable({
-      user1: v.string(),
-      user2: v.string(),
-      user1Name: v.string(),
-      user2Name: v.string(),
-      user1Deleted: v.boolean(), 
-      user2Deleted: v.boolean(),
+      isGroup: v.boolean(),
+      name: v.optional(v.string()),
       lastMessageSenderId: v.optional(v.string()), 
 
     }),
+
+    conversationMembers: defineTable({
+      conversationId: v.id("conversations"), 
+      memberId: v.string(), 
+      memberName: v.string(), 
+      deleted: v.boolean(), 
+      lastReadTime: v.number(),
+    })
+  // Index to quickly find all conversations for a single user
+    .index("by_member", ["memberId"])
+  // Index to find all members of a specific conversation
+    .index("by_conversation", ["conversationId"]),
 
     messages: defineTable({
       conversationId: v.id("conversations"),
