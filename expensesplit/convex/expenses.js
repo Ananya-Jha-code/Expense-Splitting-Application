@@ -34,8 +34,11 @@ async function computeGroupBalances(ctx, groupId) {
 
   for (const e of exps) {
     // find payer contact for this expense (if any)
-    const payerContactId = clerkIdByContact.get(e.createdBy) ?? null;
-
+    const isSettlement = e.isSettlement ?? false;
+    const payerContactId = isSettlement
+      ? e.createdBy // createdBy is contactId for settlements
+      : clerkIdByContact.get(e.createdBy) ?? null; // createdBy is clerkUserId for regular expenses
+    
     const parts = await ctx.db
       .query("splits")
       .withIndex("by_expense", (q) => q.eq("expenseId", e._id))
@@ -182,6 +185,11 @@ export const settlements = query({
     debtors.sort((a, b) => b.net - a.net);
     creditors.sort((a, b) => b.net - a.net);
 
+
+    const allContactIds = [...debtors.map(d => d.contactId), ...creditors.map(c => c.contactId)];
+    const allContacts = await Promise.all(allContactIds.map(id => ctx.db.get(id)));
+    const contactMap = new Map(allContacts.map(c => [c._id, c]));
+
     const results = [];
     let i = 0,
       j = 0;
@@ -192,12 +200,17 @@ export const settlements = query({
       const amount = Math.min(d.net, c.net);
 
       if (amount < 0.01) break;
+      const fromContact = contactMap.get(d.contactId);
+      const toContact = contactMap.get(c.contactId);
+
 
       results.push({
         fromId: d.contactId,
+        fromClerkUserId: fromContact?.clerkUserId,
         fromName: d.name,
         toId: c.contactId,
         toName: c.name,
+        toClerkUserId: toContact?.clerkUserId, 
         amount: Math.round(amount * 100) / 100,
       });
 
@@ -211,6 +224,69 @@ export const settlements = query({
     return results;
   },
 });
+
+function normalizeId(userId) {
+  return userId.split("|").pop();
+}// in expenses.js
+// ...
+export const recordSettlement = mutation({
+  args: {
+    groupId: v.id("groups"),
+    fromId: v.id("contacts"), // The person paying (debtor)
+    toId: v.id("contacts"), // The person receiving (creditor)
+    amount: v.number(),
+  },
+  handler: async (ctx, { groupId, fromId, toId, amount }) => {
+    const ident = await ctx.auth.getUserIdentity();
+    if (!ident) throw new Error("Not authenticated");
+    const temp = ident.subject; // The Clerk ID of the person clicking 'Settle'
+    // Assuming you have a normalizeId function defined nearby
+    const currentClerkId = normalizeId(temp); 
+
+    if (amount <= 0) throw new Error("Settlement amount must be positive");
+
+    // 1. Authorization Check (Keep this part for security)
+    const [fromContact, toContact] = await Promise.all([
+      ctx.db.get(fromId),
+      ctx.db.get(toId),
+    ]);
+    if (!fromContact || !toContact) {
+      throw new Error("One or both contacts not found.");
+    }
+    const isDebtor = fromContact.clerkUserId === currentClerkId;
+    const isCreditor = toContact.clerkUserId === currentClerkId;
+    
+    if (!isDebtor && !isCreditor) {
+      throw new Error("Only the involved parties can record a settlement.");
+    }
+   
+    const description = `Settlement: ${fromContact.name} paid ${toContact.name} (Amount: ${amount.toFixed(2)})`;
+    
+    const expenseId = await ctx.db.insert("expenses", {
+      groupId,
+      createdBy: ident.subject, 
+      description,
+      amount: 0, 
+      createdAt: Date.now(),
+      isSettlement: true,
+    });
+    
+    await ctx.db.insert("splits", {
+      expenseId,
+      contactId: fromId,
+      share: -amount, // Reduces the debtor's owed (net decreases)
+    });
+
+    await ctx.db.insert("splits", {
+      expenseId,
+      contactId: toId,
+      share: amount, // Increases the creditor's owed (net increases)
+    });
+    
+    return expenseId;
+  },
+});
+
 
 /* -------- existing simple add/recent for dashboard ------- */
 

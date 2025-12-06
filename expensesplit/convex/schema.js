@@ -51,6 +51,7 @@ export default defineSchema({
       description: v.string(),
       amount: v.number(),        
       createdAt: v.number(),
+      isSettlement: v.optional(v.boolean()),
     }).index("by_group", ["groupId"]),
   
     splits: defineTable({

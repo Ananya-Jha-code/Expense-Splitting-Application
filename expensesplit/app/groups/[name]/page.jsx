@@ -9,8 +9,12 @@ export default function GroupDetailPage() {
   const { name } = useParams();               // group name from URL
   const group = useQuery(api.groups.getByName, { name });
   const groupId = group?._id;
+  const myContactId = useQuery(api.contacts.getMyContactId);
+  console.log("Current User's Contact ID/Name:", myContactId);
 
   const shouldFetch = Boolean(groupId);
+  const contacts = useQuery(api.contacts.list);
+
 
   const members = useQuery(
     api.groups.members,
@@ -33,7 +37,8 @@ export default function GroupDetailPage() {
   const addMember = useMutation(api.groups.addMember);
   const createEqual = useMutation(api.expenses.createEqualSplit);
   const createCustom = useMutation(api.expenses.createCustomSplit);
-
+  const recordSettlement = useMutation(api.expenses.recordSettlement);
+  const [authError, setAuthError] = React.useState(null);
   const [selectedContactId, setSelectedContactId] = React.useState("");
 
   const [mode, setMode] = React.useState("equal"); // "equal" | "custom"
@@ -318,29 +323,97 @@ export default function GroupDetailPage() {
         {settlements && settlements.length > 0 && (
           <div className="rounded border">
             <ul className="divide-y text-sm">
-              {settlements.map((s, idx) => (
-                <li
-                  key={idx}
-                  className="p-3 flex justify-between"
-                >
-                  <span>
-                    <span className="font-medium">
-                      {s.fromName}
-                    </span>{" "}
-                    pays{" "}
-                    <span className="font-medium">
-                      {s.toName}
-                    </span>
-                  </span>
-                  <span className="font-mono">
-                    ${s.amount.toFixed(2)}
-                  </span>
-                </li>
-              ))}
+              {settlements.map((s, idx) => {
+                
+                let isAuthorized = false;
+
+                if (myContactId && contacts) {
+                  // Get the current user's clerkUserId from their own contact
+                  const myContact = contacts.find(c => c._id === myContactId);
+                  
+                  console.log('Debug settlement:', {
+                      settlementIndex: idx,
+                      fromName: s.fromName,
+                      toName: s.toName,
+                      myClerkUserId: myContact?.clerkUserId,
+                      fromClerkUserId: s.fromClerkUserId,
+                  });
+                  
+                  if (myContact && s.fromClerkUserId) {
+                      isAuthorized = (myContact.clerkUserId === s.fromClerkUserId);
+                  }
+                  
+                  console.log('isAuthorized:', isAuthorized);
+                }
+
+
+                return (
+                  <li
+                    key={idx}
+                    className="p-3 flex justify-between items-center"
+                  >
+                    <div className="flex-1">
+                      <span>
+                        <span className="font-medium">{s.fromName}</span> must pay {" "}
+                        <span className="font-medium">{s.toName}</span>
+                      </span>
+                      <span className="font-mono ml-2">${s.amount.toFixed(2)}</span>
+                    </div>
+                    
+                    {/* CONDITIONAL RENDERING: Button ONLY appears if isAuthorized is true */}
+                    {isAuthorized ? (
+                      <button
+                        type="button"
+                        className="ml-4 px-3 py-1 bg-green-500 text-white rounded hover:bg-green-600 transition-colors"
+                        onClick={async () => {
+                          if (!groupId) return;
+                          try {
+                            await recordSettlement({
+                              groupId,
+                              fromId: s.fromId,
+                              toId: s.toId,
+                              amount: s.amount,
+                            });
+                          } catch (error) {
+                            console.error("Settlement failed:", error);
+                            alert(`Failed to record settlement: ${error.message}`);   
+                          }
+                        }}
+                      >
+                        Settle
+                      </button>
+                    ) : null} 
+                  </li>
+                );
+              })}
             </ul>
           </div>
         )}
+
+
       </section>
+
+      {authError && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl shadow-xl p-6 max-w-sm w-full text-center space-y-4">
+            <h2 className="text-lg font-semibold text-red-600">
+              Authorization Error
+            </h2>
+            <p className="text-gray-700">
+              {authError}
+            </p>
+            <div className="flex justify-center pt-2">
+              <button
+                onClick={() => setAuthError(null)}
+                className="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300 transition"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </main>
   );
 }

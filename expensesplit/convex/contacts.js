@@ -19,6 +19,27 @@ export const list = query({
   },
 });
 
+export const getMyContactId = query({
+  handler: async (ctx) => {
+    const ident = await ctx.auth.getUserIdentity();
+    if (!ident) return null;
+    
+    const currentClerkId = ident.subject;
+    const userContacts = await ctx.db
+      .query("contacts")
+      .withIndex("by_clerkUserId", (q) => q.eq("clerkUserId", currentClerkId))
+      .collect();
+
+    const myOwnContact = userContacts.find(
+        (contact) => contact.ownerId === currentClerkId
+    );
+
+    return myOwnContact?._id ?? null;
+  },
+});
+
+
+
 function normalizeId(userId) {
   return userId.split("|").pop();
 }
