@@ -205,6 +205,15 @@ export const internalCreateGroupChat = internalMutation({
         if (memberInfo.length < 2) {
             throw new Error("A group chat must have at least two members.");
         }
+
+        const uniqueMembersMap = new Map();
+        for (const member of memberInfo) {
+          const normId = normalizeId(member.id);
+          if (!uniqueMembersMap.has(normId)) {
+            uniqueMembersMap.set(normId, { id: normId, name: member.name });
+          }
+        }
+        const uniqueMembers = Array.from(uniqueMembersMap.values());
     // create new convo document
         const conversationId = await db.insert("conversations", {
             isGroup: true,
@@ -241,7 +250,9 @@ export const createGroup = mutation({
         // Ensure current user is in the memberInfo array being passed to the internal function
         let memberInfo = args.memberIds;
         const currentUserId = identity.tokenIdentifier;
-        if (!memberInfo.some(m => m.id === currentUserId)) {
+        normalizedCurrentUserId = normalizeId(currentUserId);
+
+        if (!memberInfo.some(m => normalizeId(m.id) === normalizedCurrentUserId)) {
             memberInfo = [
                 ...memberInfo,
                 { 

@@ -24,7 +24,11 @@ export default defineSchema({
       phone: v.optional(v.string()),
       clerkUserId: v.optional(v.string()),
       createdAt: v.number(),
-    }).index("by_owner", ["ownerId"]),
+      hidden: v.optional(v.boolean()),
+    })
+    .index("by_owner", ["ownerId"])
+    .index("by_clerkUserId", ["clerkUserId"]),
+
     
     
     groups: defineTable({
