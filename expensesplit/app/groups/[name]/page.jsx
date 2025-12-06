@@ -331,16 +331,22 @@ export default function GroupDetailPage() {
                   // Get the current user's clerkUserId from their own contact
                   const myContact = contacts.find(c => c._id === myContactId);
                   
-                  console.log('Debug settlement:', {
-                      settlementIndex: idx,
-                      fromName: s.fromName,
-                      toName: s.toName,
-                      myClerkUserId: myContact?.clerkUserId,
-                      fromClerkUserId: s.fromClerkUserId,
-                  });
+                  // console.log('Authorization check:', {
+                  //     settlementIndex: idx,
+                  //     fromName: s.fromName,
+                  //     toName: s.toName,
+                  //     myClerkUserId: myContact?.clerkUserId,
+                  //     fromClerkUserId: s.fromClerkUserId,
+                  //     toClerkUserId: s.toClerkUserId,
+                  //     isDebtor: myContact?.clerkUserId === s.fromClerkUserId,
+                  //     isCreditor: myContact?.clerkUserId === s.toClerkUserId,
+                  // });
                   
-                  if (myContact && s.fromClerkUserId) {
-                      isAuthorized = (myContact.clerkUserId === s.fromClerkUserId);
+                  if (myContact) {
+                      // Show button if current user is EITHER the debtor OR the creditor
+                      const isDebtor = (myContact.clerkUserId === s.fromClerkUserId);
+                      const isCreditor = (myContact.clerkUserId === s.toClerkUserId);
+                      isAuthorized = isDebtor || isCreditor;
                   }
                   
                   console.log('isAuthorized:', isAuthorized);
