@@ -11,6 +11,14 @@ import {
 } from "recharts";
 
 function DashboardInner() {
+  const categories = [
+    "Food & Dining",
+    "Transportation",
+    "Utilities & Bills",
+    "Housing & Rent",
+    "Entertainment & Leisure",
+    "Other",
+  ];
   const { user } = useUser();
   const me = user?.id ?? "";
 
@@ -19,7 +27,15 @@ function DashboardInner() {
   const perMonth = useQuery(api.dashboard.byMonth) ?? [];
   const perCategory = useQuery(api.dashboard.byCategory) ?? [];
   const recent = useQuery(api.expenses.recent, { limit: 5 }) ?? [];
-
+  
+  const categoryColors = {
+    "Food & Dining": "#FF6384",
+    "Transportation": "#36A2EB",
+    "Utilities & Bills": "#FFCE56",
+    "Housing & Rent": "#4BC0C0",
+    "Entertainment & Leisure": "#9966FF",
+    "Other": "#FF9F40",
+  };
   // Форма добавления расхода
   const addExpense = useMutation(api.expenses.add);
   const [title, setTitle] = useState("");
@@ -29,11 +45,11 @@ function DashboardInner() {
   const onAdd = async (e) => {
     e.preventDefault();
     const value = Number(amount);
-    if (!title || !value || !me) return;
+    if (!title || !value || !category || !me) return;
     await addExpense({
       title,
       amount: value,
-      category: category || undefined,
+      category,
       payerToken: me,
       currency: "USD",
     });
@@ -74,12 +90,17 @@ function DashboardInner() {
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
           />
-          <input
+          <select
             className="border rounded px-3 py-2 w-48"
-            placeholder="Category (optional)"
             value={category}
             onChange={(e) => setCategory(e.target.value)}
-          />
+            required
+          >
+            <option value="">Select category</option>
+            {categories.map((c) => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+          </select>
           <button className="border rounded px-4 py-2 bg-black text-white">
             Add
           </button>
@@ -110,7 +131,12 @@ function DashboardInner() {
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie dataKey="value" data={perCategory} outerRadius={100} label>
-                  {perCategory.map((_, i) => <Cell key={i} />)}
+                  {perCategory.map((entry, i) => (
+                    <Cell
+                      key={`cell-${i}`}
+                      fill={categoryColors[entry.category] ?? "#ccc"}
+                    />
+                  ))}
                 </Pie>
                 <Tooltip />
               </PieChart>

@@ -7,64 +7,53 @@ import { api } from "../../../convex/_generated/api";
 
 export default function GroupDetailPage() {
   const params = useParams();
-  
-  // FIX: Decode the URL parameter so "My%20Group" becomes "My Group"
+
   const rawName = params.name;
-  const decodedName = React.useMemo(() => 
-    rawName ? decodeURIComponent(rawName) : "", 
+  const decodedName = React.useMemo(
+    () => (rawName ? decodeURIComponent(rawName) : ""),
     [rawName]
   );
 
-  // Use the decoded name for the query
   const group = useQuery(api.groups.getByName, { name: decodedName });
-
   const groupId = group?._id;
   const myContactId = useQuery(api.contacts.getMyContactId);
 
-  // Only fetch subsequent queries if we have a valid groupId
   const shouldFetch = Boolean(groupId);
 
   const contacts = useQuery(api.contacts.list);
-
-  const members = useQuery(
-    api.groups.members,
-    shouldFetch ? { groupId } : "skip"
-  );
-
-  const expenses = useQuery(
-    api.expenses.listByGroup,
-    shouldFetch ? { groupId } : "skip"
-  );
-
-  const balances = useQuery(
-    api.expenses.balances,
-    shouldFetch ? { groupId } : "skip"
-  );
-
-  const settlements = useQuery(
-    api.expenses.settlements,
-    shouldFetch ? { groupId } : "skip"
-  );
-
+  const members = useQuery(api.groups.members, shouldFetch ? { groupId } : "skip");
+  const expenses = useQuery(api.expenses.listByGroup, shouldFetch ? { groupId } : "skip");
+  const balances = useQuery(api.expenses.balances, shouldFetch ? { groupId } : "skip");
+  const settlements = useQuery(api.expenses.settlements, shouldFetch ? { groupId } : "skip");
   const myContacts = useQuery(api.contacts.list);
 
   const addMember = useMutation(api.groups.addMember);
   const createEqual = useMutation(api.expenses.createEqualSplit);
   const createCustom = useMutation(api.expenses.createCustomSplit);
   const recordSettlement = useMutation(api.expenses.recordSettlement);
-  const [authError, setAuthError] = React.useState(null);
-  const [selectedContactId, setSelectedContactId] = React.useState("");
 
+  const [authError, setAuthError] = React.useState(null);
   const [mode, setMode] = React.useState("equal"); // "equal" | "custom"
   const [desc, setDesc] = React.useState("");
   const [amount, setAmount] = React.useState("");
   const [customDesc, setCustomDesc] = React.useState("");
   const [customShares, setCustomShares] = React.useState([]);
 
+  // --- New category state ---
+  const categories = [
+    "Food & Dining",
+    "Transportation",
+    "Utilities & Bills",
+    "Housing & Rent",
+    "Entertainment & Leisure",
+    "Other",
+  ];
+  const [category, setCategory] = React.useState(categories[0]);
+  const [customCategory, setCustomCategory] = React.useState(categories[0]);
+
   const loadingExpenses = expenses === undefined;
   const loadingBalances = balances === undefined;
 
-  // when members load, initialize one share row per member
   React.useEffect(() => {
     if (members) {
       setCustomShares(
@@ -77,23 +66,10 @@ export default function GroupDetailPage() {
   }, [members]);
 
   if (!group && !groupId) {
-     // If the query hasn't returned yet, show loading
-     // If the query returned null (not found), show that.
-     // Since `useQuery` returns `undefined` while loading, checking !group covers both initially.
-     // But strictly, we might want to differentiate.
-     if (group === undefined) {
-        return (
-          <main className="p-6 text-gray-500">
-            Loading group details...
-          </main>
-        );
-     }
-     // If group is null (loaded but not found)
-     return (
-       <main className="p-6 text-red-500">
-         Group not found.
-       </main>
-     );
+    if (group === undefined) {
+      return <main className="p-6 text-gray-500">Loading group details...</main>;
+    }
+    return <main className="p-6 text-red-500">Group not found.</main>;
   }
 
   return (
@@ -107,18 +83,14 @@ export default function GroupDetailPage() {
         {/* Toggle equal/custom */}
         <div className="flex gap-2">
           <button
-            className={`border rounded px-3 py-1 ${
-              mode === "equal" ? "bg-black text-white" : ""
-            }`}
+            className={`border rounded px-3 py-1 ${mode === "equal" ? "bg-black text-white" : ""}`}
             type="button"
             onClick={() => setMode("equal")}
           >
             Equal split
           </button>
           <button
-            className={`border rounded px-3 py-1 ${
-              mode === "custom" ? "bg-black text-white" : ""
-            }`}
+            className={`border rounded px-3 py-1 ${mode === "custom" ? "bg-black text-white" : ""}`}
             type="button"
             onClick={() => setMode("custom")}
           >
@@ -138,12 +110,14 @@ export default function GroupDetailPage() {
                 groupId,
                 description: desc.trim(),
                 amount: total,
+                category, // send selected category
               });
 
               setDesc("");
               setAmount("");
+              setCategory(categories[0]);
             }}
-            className="flex gap-2"
+            className="flex gap-2 flex-wrap"
           >
             <input
               className="border rounded px-3 py-2 flex-1"
@@ -157,9 +131,18 @@ export default function GroupDetailPage() {
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
             />
-            <button className="border rounded px-4 py-2">
-              Add equal split
-            </button>
+            <select
+              className="border rounded px-3 py-2"
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+            >
+              {categories.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+            <button className="border rounded px-4 py-2">Add equal split</button>
           </form>
         ) : (
           // ---------- Custom split ----------
@@ -167,15 +150,10 @@ export default function GroupDetailPage() {
             <div className="grid gap-2">
               {(members ?? []).map((m) => {
                 const idForRow = m._id ?? m.contactId ?? m.id;
-                const share =
-                  customShares.find((s) => s.contactId === idForRow)
-                    ?.share ?? 0;
+                const share = customShares.find((s) => s.contactId === idForRow)?.share ?? 0;
 
                 return (
-                  <div
-                    key={idForRow}
-                    className="flex items-center gap-3"
-                  >
+                  <div key={idForRow} className="flex items-center gap-3">
                     <div className="w-48 truncate">{m.name}</div>
                     <input
                       type="number"
@@ -187,12 +165,7 @@ export default function GroupDetailPage() {
                         const v = Number(e.target.value);
                         setCustomShares((prev) =>
                           prev.map((s) =>
-                            s.contactId === idForRow
-                              ? {
-                                  ...s,
-                                  share: isFinite(v) ? v : 0,
-                                }
-                              : s
+                            s.contactId === idForRow ? { ...s, share: isFinite(v) ? v : 0 } : s
                           )
                         );
                       }}
@@ -202,7 +175,7 @@ export default function GroupDetailPage() {
               })}
             </div>
 
-            {/* Summary + submit */}
+            {/* Category select + submit */}
             <form
               onSubmit={async (e) => {
                 e.preventDefault();
@@ -213,6 +186,7 @@ export default function GroupDetailPage() {
                   groupId,
                   description: customDesc.trim(),
                   shares: cleaned,
+                  category: customCategory, // send selected category
                 });
 
                 setCustomDesc("");
@@ -222,8 +196,9 @@ export default function GroupDetailPage() {
                     share: 0,
                   }))
                 );
+                setCustomCategory(categories[0]);
               }}
-              className="flex gap-2 items-center"
+              className="flex gap-2 items-center flex-wrap"
             >
               <input
                 className="border rounded px-3 py-2 flex-1"
@@ -231,19 +206,22 @@ export default function GroupDetailPage() {
                 value={customDesc}
                 onChange={(e) => setCustomDesc(e.target.value)}
               />
+              <select
+                className="border rounded px-3 py-2"
+                value={customCategory}
+                onChange={(e) => setCustomCategory(e.target.value)}
+              >
+                {categories.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
               <div className="text-sm text-gray-600 px-2">
                 Total: $
-                {customShares
-                  .reduce(
-                    (sum, s) =>
-                      sum + (Number.isFinite(s.share) ? s.share : 0),
-                    0
-                  )
-                  .toFixed(2)}
+                {customShares.reduce((sum, s) => sum + (Number.isFinite(s.share) ? s.share : 0), 0).toFixed(2)}
               </div>
-              <button className="border rounded px-4 py-2">
-                Add custom split
-              </button>
+              <button className="border rounded px-4 py-2">Add custom split</button>
             </form>
           </div>
         )}
@@ -260,7 +238,7 @@ export default function GroupDetailPage() {
                 <li key={e._id} className="p-3">
                   <div className="font-medium">{e.description}</div>
                   <div className="text-sm text-gray-500">
-                    ${e.amount.toFixed(2)}
+                    ${e.amount.toFixed(2)} — <span className="italic">{e.category}</span>
                   </div>
                 </li>
               ))}

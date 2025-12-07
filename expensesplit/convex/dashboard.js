@@ -76,7 +76,7 @@ export const byCategory = query(async ({ db }) => {
     const cat = e.category ?? "Other";
     map.set(cat, (map.get(cat) ?? 0) + e.amount);
   }
-  return [...map.entries()].map(([name, value]) => ({ name, value }));
+  return [...map.entries()].map(([category, value]) => ({ category, name: category, value }));
 });
 
 export const getSummary = query(async ({ db }) => {

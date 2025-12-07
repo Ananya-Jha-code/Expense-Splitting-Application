@@ -85,9 +85,10 @@ export const createEqualSplit = mutation({
   args: {
     groupId: v.id("groups"),
     description: v.string(),
-    amount: v.number(), // total
+    amount: v.number(), 
+    category: v.string(),
   },
-  handler: async (ctx, { groupId, description, amount }) => {
+  handler: async (ctx, { groupId, description, amount, category }) => {
     const ident = await ctx.auth.getUserIdentity();
     if (!ident) throw new Error("Not authenticated");
 
@@ -104,6 +105,7 @@ export const createEqualSplit = mutation({
       createdBy: ident.subject,
       description,
       amount,
+      category: category ?? "Other", 
       createdAt: Date.now(),
     });
 
@@ -125,8 +127,9 @@ export const createCustomSplit = mutation({
     shares: v.array(
       v.object({ contactId: v.id("contacts"), share: v.number() })
     ),
+    category: v.string(),
   },
-  async handler(ctx, { groupId, description, shares }) {
+  async handler(ctx, { groupId, description, shares, category }) {
     const ident = await ctx.auth.getUserIdentity();
     if (!ident) throw new Error("Not authenticated");
     const total = shares.reduce((s, x) => s + x.share, 0);
@@ -137,6 +140,7 @@ export const createCustomSplit = mutation({
       createdBy: ident.subject,
       description,
       amount: Math.round(total * 100) / 100,
+      category: category ?? "Other",
       createdAt: Date.now(),
     });
 
@@ -294,14 +298,29 @@ export const add = mutation({
   args: {
     title: v.string(),
     amount: v.number(),
-    category: v.optional(v.string()),
+    category: v.string()    ,
     payerToken: v.string(),
     currency: v.optional(v.string()),
+    groupId: v.optional(v.id("groups")), 
   },
   handler: async ({ db }, args) => {
-    return await db.insert("expenses", args);
+    const { title, amount, category, payerToken, currency, groupId } = args;
+
+    if (!category) throw new Error("Category is required");
+    if (!title) throw new Error("Title is required");
+    if (!amount || amount <= 0) throw new Error("Amount must be greater than 0");
+    if (!payerToken) throw new Error("payerToken is required");
+    return await db.insert("expenses", {
+      description: title,
+      amount,
+      category,
+      groupId: groupId ?? undefined, // null for personal expenses
+      createdBy: payerToken, // current user id
+      createdAt: Date.now(),
+    });
   },
 });
+
 
 export const recent = query({
   args: { limit: v.optional(v.number()) },
@@ -327,17 +346,19 @@ export const recent = query({
         }
 
         let myShareAmount = 0;
-        
-        const split = await db
-          .query("splits")
-          .withIndex("by_expense", (q) => q.eq("expenseId", e._id))
-          .filter((q) => q.eq(q.field("contactId"), myContact._id))
-          .first();
-
-        if (split) {
-          myShareAmount = split.share;
-        } else if (e.payerToken === ident.subject && !e.groupId) {
-           myShareAmount = e.amount;
+        // console.log("creaedby: ", e.createdBy);
+        // console.log("Ident subj: ", ident.subject);
+        if (e.groupId) {
+          // Group expense: look for my split
+          const split = await db
+            .query("splits")
+            .withIndex("by_expense", (q) => q.eq("expenseId", e._id))
+            .filter((q) => q.eq(q.field("contactId"), myContact._id))
+            .first();
+          if (split) myShareAmount = split.share;
+        } else if (!e.groupId && e.createdBy === ident.subject) {
+          // Personal expense: I paid the full amount
+          myShareAmount = e.amount;
         }
 
         let displayAmount = myShareAmount; 

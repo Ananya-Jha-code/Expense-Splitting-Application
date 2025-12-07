@@ -46,11 +46,12 @@ export default defineSchema({
       .index("by_contact", ["contactId"]),
   
     expenses: defineTable({
-      groupId: v.id("groups"),
+      groupId: v.optional(v.id("groups")),
       createdBy: v.string(),    
       description: v.string(),
       amount: v.number(),        
       createdAt: v.number(),
+      category: v.string(),
       isSettlement: v.optional(v.boolean()),
     }).index("by_group", ["groupId"]),
   
