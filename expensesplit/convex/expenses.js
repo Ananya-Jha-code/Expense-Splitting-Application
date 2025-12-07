@@ -305,12 +305,56 @@ export const add = mutation({
 
 export const recent = query({
   args: { limit: v.optional(v.number()) },
-  handler: async ({ db }, { limit = 5 }) => {
-    const list = await db.query("expenses").collect();
-    return list
-      .sort(
-        (a, b) => (b._creationTime ?? 0) - (a._creationTime ?? 0)
-      )
-      .slice(0, limit);
+  handler: async ({ db, auth }, { limit = 5 }) => {
+    const ident = await auth.getUserIdentity();
+    if (!ident) return []; 
+
+    const myContact = await db
+      .query("contacts")
+      .withIndex("by_clerkUserId", (q) => q.eq("clerkUserId", ident.subject))
+      .first();
+    
+    if (!myContact) return []; 
+
+    const expenses = await db.query("expenses").order("desc").take(limit);
+
+    return Promise.all(
+      expenses.map(async (e) => {
+        let groupName = "Personal";
+        if (e.groupId) {
+          const group = await db.get(e.groupId);
+          if (group) groupName = group.name;
+        }
+
+        let myShareAmount = 0;
+        
+        const split = await db
+          .query("splits")
+          .withIndex("by_expense", (q) => q.eq("expenseId", e._id))
+          .filter((q) => q.eq(q.field("contactId"), myContact._id))
+          .first();
+
+        if (split) {
+          myShareAmount = split.share;
+        } else if (e.payerToken === ident.subject && !e.groupId) {
+           myShareAmount = e.amount;
+        }
+
+        let displayAmount = myShareAmount; 
+        if (e.isSettlement) {
+             
+             const match = e.description.match(/Amount:\s*([\d.]+)/);
+             if (match) displayAmount = parseFloat(match[1]);
+        }
+
+        return {
+          ...e,
+          title: e.title || e.description || "Untitled",
+          groupName,
+          amount: displayAmount, 
+          totalAmount: e.amount  
+        };
+      })
+    );
   },
 });

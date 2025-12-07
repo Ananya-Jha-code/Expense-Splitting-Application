@@ -122,9 +122,18 @@ function DashboardInner() {
           <h2 className="text-lg font-medium mb-3">Recent expenses</h2>
           <ul className="divide-y">
             {recent.map((e) => (
-              <li key={e._id} className="py-2 flex justify-between">
-                <span className="truncate">{e.title}</span>
-                <span className="font-medium">${e.amount.toFixed?.(2) ?? e.amount}</span>
+              <li key={e._id} className="py-2 flex justify-between items-center">
+                <div className="flex flex-col overflow-hidden">
+                  {/* Show Description/Title */}
+                  <span className="font-medium truncate">{e.title}</span>
+                  {/* Show Group Name in smaller grey text */}
+                  <span className="text-xs text-gray-500 truncate">
+                    {e.groupName}
+                  </span>
+                </div>
+                <span className="font-semibold ml-2">
+                  ${e.amount.toFixed?.(2) ?? e.amount}
+                </span>
               </li>
             ))}
             {recent.length === 0 && (
