@@ -24,7 +24,7 @@ export const createEqualSplit = mutation({
       .withIndex("by_group", q => q.eq("groupId", groupId)).collect();
     if (memLinks.length === 0) throw new Error("No members in group");
 
-    const perHead = Math.round((amount / memLinks.length) * 100) / 100;
+    const perHead = Math.round((amount / (memLinks.length+1)) * 100) / 100;
 
     const expenseId = await ctx.db.insert("expenses", {
       groupId, createdBy: ident.subject, description, amount, createdAt: Date.now(),
@@ -41,26 +41,60 @@ export const createEqualSplit = mutation({
     return expenseId;
   },
 });
+// export const createCustomSplit = mutation({
+//     args: {
+//       groupId: v.id("groups"),
+//       description: v.string(),
+//       shares: v.array(v.object({ contactId: v.id("contacts"), share: v.number() })),
+//     },
+//     async handler(ctx, { groupId, description, shares }) {
+//       const ident = await ctx.auth.getUserIdentity();
+//       if (!ident) throw new Error("Not authenticated");
+//       const total = shares.reduce((s, x) => s + x.share, 0);
+//       if (!(total > 0)) throw new Error("Total must be > 0");
+  
+//       const expenseId = await ctx.db.insert("expenses", {
+//         groupId,
+//         createdBy: ident.subject,
+//         description,
+//         amount: Math.round(total * 100) / 100,
+//         createdAt: Date.now(),
+//       });
+  
+//       for (const s of shares) {
+//         await ctx.db.insert("splits", {
+//           expenseId,
+//           contactId: s.contactId,
+//           share: Math.round(s.share * 100) / 100,
+//         });
+//       }
+//       return expenseId;
+//     },
+//   });
 export const createCustomSplit = mutation({
     args: {
       groupId: v.id("groups"),
       description: v.string(),
+      amount: v.number(),
       shares: v.array(v.object({ contactId: v.id("contacts"), share: v.number() })),
     },
-    async handler(ctx, { groupId, description, shares }) {
+    async handler(ctx, { groupId, description, amount, shares }) {
       const ident = await ctx.auth.getUserIdentity();
       if (!ident) throw new Error("Not authenticated");
-      const total = shares.reduce((s, x) => s + x.share, 0);
-      if (!(total > 0)) throw new Error("Total must be > 0");
-  
+      
+      const totalShares = shares.reduce((s, x) => s + x.share, 0);
+      if (totalShares > amount) {
+          throw new Error("Sum of shares cannot exceed total amount");
+      }
+
       const expenseId = await ctx.db.insert("expenses", {
         groupId,
         createdBy: ident.subject,
         description,
-        amount: Math.round(total * 100) / 100,
+        amount: Math.round(amount * 100) / 100,
         createdAt: Date.now(),
       });
-  
+
       for (const s of shares) {
         await ctx.db.insert("splits", {
           expenseId,
@@ -70,8 +104,7 @@ export const createCustomSplit = mutation({
       }
       return expenseId;
     },
-  });
-  
+  });  
 export const balances = query({
   args: { groupId: v.id("groups") },
   handler: async (ctx, { groupId }) => {

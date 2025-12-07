@@ -35,7 +35,8 @@ export default function GroupDetailPage() {
   const createCustom = useMutation(api.expenses.createCustomSplit);
   const [mode, setMode] = React.useState("equal"); // "equal" | "custom"
   const [customDesc, setCustomDesc] = React.useState("");
-  const [customShares, setCustomShares] = React.useState([]);
+  // const [customShares, setCustomShares] = React.useState([]);
+  const [customAmount, setCustomAmount] = React.useState("");
   
   // when members load, initialize one share row per member
   React.useEffect(() => {
@@ -164,7 +165,7 @@ export default function GroupDetailPage() {
       </div>
 
       {/* Summary + submit */}
-      <form
+      {/* <form
         onSubmit={async (e) => {
           e.preventDefault();
           const cleaned = customShares.filter((s) => s.share > 0);
@@ -191,6 +192,54 @@ export default function GroupDetailPage() {
         />
         <div className="text-sm text-gray-600 px-2">
           Total: $
+          {customShares.reduce((sum, s) => sum + (Number.isFinite(s.share) ? s.share : 0), 0).toFixed(2)}
+        </div>
+        <button className="border rounded px-4 py-2">Add custom split</button>
+      </form> */}
+      <form
+        onSubmit={async (e) => {
+          e.preventDefault();
+          const total = Number(customAmount);
+          const cleaned = customShares.filter((s) => s.share > 0);
+          if (!customDesc.trim() || cleaned.length === 0 || !isFinite(total) || total <= 0) return;
+
+          // Validate total >= sum of shares in UI too
+          const sumShares = cleaned.reduce((s, x) => s + x.share, 0);
+          if (sumShares > total) {
+             alert("Sum of shares cannot exceed total amount");
+             return;
+          }
+
+          await createCustom({
+            groupId,
+            description: customDesc.trim(),
+            amount: total,
+            shares: cleaned,
+          });
+
+          setCustomDesc("");
+          setCustomAmount("");
+          setCustomShares(
+            (members ?? []).map((m) => ({ contactId: m._id ?? m.contactId ?? m.id, share: 0 }))
+          );
+        }}
+        className="flex gap-2 items-center"
+      >
+        <input
+          className="border rounded px-3 py-2 flex-1"
+          placeholder="Description"
+          value={customDesc}
+          onChange={(e) => setCustomDesc(e.target.value)}
+        />
+        <input
+          className="border rounded px-3 py-2 w-24"
+          placeholder="Total"
+          type="number"
+          value={customAmount}
+          onChange={(e) => setCustomAmount(e.target.value)}
+        />
+        <div className="text-sm text-gray-600 px-2">
+           Sum: $
           {customShares.reduce((sum, s) => sum + (Number.isFinite(s.share) ? s.share : 0), 0).toFixed(2)}
         </div>
         <button className="border rounded px-4 py-2">Add custom split</button>
