@@ -6,32 +6,46 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 
 export default function GroupDetailPage() {
-  const { name } = useParams();               // group name from URL
-  const group = useQuery(api.groups.getByName, { name });
+  const params = useParams();
+  
+  // FIX: Decode the URL parameter so "My%20Group" becomes "My Group"
+  const rawName = params.name;
+  const decodedName = React.useMemo(() => 
+    rawName ? decodeURIComponent(rawName) : "", 
+    [rawName]
+  );
+
+  // Use the decoded name for the query
+  const group = useQuery(api.groups.getByName, { name: decodedName });
+
   const groupId = group?._id;
   const myContactId = useQuery(api.contacts.getMyContactId);
-  console.log("Current User's Contact ID/Name:", myContactId);
 
+  // Only fetch subsequent queries if we have a valid groupId
   const shouldFetch = Boolean(groupId);
-  const contacts = useQuery(api.contacts.list);
 
+  const contacts = useQuery(api.contacts.list);
 
   const members = useQuery(
     api.groups.members,
     shouldFetch ? { groupId } : "skip"
   );
+
   const expenses = useQuery(
     api.expenses.listByGroup,
     shouldFetch ? { groupId } : "skip"
   );
+
   const balances = useQuery(
     api.expenses.balances,
     shouldFetch ? { groupId } : "skip"
   );
+
   const settlements = useQuery(
     api.expenses.settlements,
     shouldFetch ? { groupId } : "skip"
   );
+
   const myContacts = useQuery(api.contacts.list);
 
   const addMember = useMutation(api.groups.addMember);
@@ -62,20 +76,24 @@ export default function GroupDetailPage() {
     }
   }, [members]);
 
-  if (!group) {
-    return (
-      <main className="p-6 text-gray-500">
-        Loading group details...
-      </main>
-    );
-  }
-
-  if (group === null) {
-    return (
-      <main className="p-6 text-red-500">
-        Group not found.
-      </main>
-    );
+  if (!group && !groupId) {
+     // If the query hasn't returned yet, show loading
+     // If the query returned null (not found), show that.
+     // Since `useQuery` returns `undefined` while loading, checking !group covers both initially.
+     // But strictly, we might want to differentiate.
+     if (group === undefined) {
+        return (
+          <main className="p-6 text-gray-500">
+            Loading group details...
+          </main>
+        );
+     }
+     // If group is null (loaded but not found)
+     return (
+       <main className="p-6 text-red-500">
+         Group not found.
+       </main>
+     );
   }
 
   return (
@@ -326,21 +344,9 @@ export default function GroupDetailPage() {
               {settlements.map((s, idx) => {
                 
                 let isAuthorized = false;
-
                 if (myContactId && contacts) {
                   // Get the current user's clerkUserId from their own contact
                   const myContact = contacts.find(c => c._id === myContactId);
-                  
-                  // console.log('Authorization check:', {
-                  //     settlementIndex: idx,
-                  //     fromName: s.fromName,
-                  //     toName: s.toName,
-                  //     myClerkUserId: myContact?.clerkUserId,
-                  //     fromClerkUserId: s.fromClerkUserId,
-                  //     toClerkUserId: s.toClerkUserId,
-                  //     isDebtor: myContact?.clerkUserId === s.fromClerkUserId,
-                  //     isCreditor: myContact?.clerkUserId === s.toClerkUserId,
-                  // });
                   
                   if (myContact) {
                       // Show button if current user is EITHER the debtor OR the creditor
@@ -349,9 +355,8 @@ export default function GroupDetailPage() {
                       isAuthorized = isDebtor || isCreditor;
                   }
                   
-                  console.log('isAuthorized:', isAuthorized);
+                  // console.log('isAuthorized:', isAuthorized);
                 }
-
 
                 return (
                   <li
@@ -395,8 +400,6 @@ export default function GroupDetailPage() {
             </ul>
           </div>
         )}
-
-
       </section>
 
       {authError && (
@@ -419,7 +422,6 @@ export default function GroupDetailPage() {
           </div>
         </div>
       )}
-
     </main>
   );
 }
