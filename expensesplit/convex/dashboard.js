@@ -6,20 +6,51 @@ import { v } from "convex/values";
 export const balances = query({
   args: { me: v.string() }, // Clerk user.id
   handler: async ({ db }, { me }) => {
-    const all = await db.query("expenses").collect();
-    let youPaid = 0, othersPaid = 0;
+    // 1. Get all contacts linked to this user (could be in multiple groups)
+    const myContacts = await db
+      .query("contacts")
+      .withIndex("by_clerkUserId", (q) => q.eq("clerkUserId", me))
+      .collect();
+    
+    const myContactIds = new Set(myContacts.map((c) => c._id));
 
-    for (const e of all) {
-      if (e.payerToken === me) youPaid += e.amount;
-      else othersPaid += e.amount;
+    // 2. Get all expenses
+    const allExpenses = await db.query("expenses").collect();
+
+    let youPaid = 0;
+    let youShare = 0; // Total value of things you consumed/were split into
+    let totalSpentByGroup = 0; // Just for reference if needed
+
+    // 3. Iterate expenses to find what YOU paid
+    for (const e of allExpenses) {
+      if (e.payerToken === me || e.createdBy === me) {
+        youPaid += e.amount;
+      }
+      
+      // Get splits for this expense
+      const splits = await db
+        .query("splits")
+        .withIndex("by_expense", (q) => q.eq("expenseId", e._id))
+        .collect();
+
+      // Find if I am in the splits
+      for (const s of splits) {
+        if (myContactIds.has(s.contactId)) {
+          youShare += s.share;
+        }
+      }
     }
 
-    const net = youPaid - othersPaid;
+    // Net position: (What I Paid) - (What I Consumed)
+    // If positive: I paid more than my share -> I am owed money.
+    // If negative: I consumed more than I paid -> I owe money.
+    const net = youPaid - youShare;
+
     return {
-      youOwe: Math.max(-net, 0),
-      youAreOwed: Math.max(net, 0),
+      youOwe: net < 0 ? Math.abs(net) : 0,
+      youAreOwed: net > 0 ? net : 0,
       youPaid,
-      othersPaid,
+      othersPaid: 0, // This field is vague in global context, leaving as 0 or could be totalGroup - youPaid
     };
   },
 });
