@@ -18,8 +18,8 @@ export const balances = query({
     const allExpenses = await db.query("expenses").collect();
 
     let youPaid = 0;
-    let youShare = 0; // Total value of things you consumed/were split into
-    let totalSpentByGroup = 0; // Just for reference if needed
+    let youShare = 0; 
+    let totalSpentByGroup = 0; 
 
     // 3. Iterate expenses to find what YOU paid
     for (const e of allExpenses) {
@@ -41,16 +41,13 @@ export const balances = query({
       }
     }
 
-    // Net position: (What I Paid) - (What I Consumed)
-    // If positive: I paid more than my share -> I am owed money.
-    // If negative: I consumed more than I paid -> I owe money.
     const net = youPaid - youShare;
 
     return {
       youOwe: net < 0 ? Math.abs(net) : 0,
       youAreOwed: net > 0 ? net : 0,
       youPaid,
-      othersPaid: 0, // This field is vague in global context, leaving as 0 or could be totalGroup - youPaid
+      othersPaid: 0, 
     };
   },
 });

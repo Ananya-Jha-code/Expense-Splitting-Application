@@ -8,10 +8,8 @@ import UserSearchBar from "@/components/UserSearchBar";
 import { Edit2, Users, ArrowLeft } from "react-feather"; 
 
 
-// Utility to generate initials from a name (e.g., "Sherab Lama" -> "SL")
 const getInitials = (name) => {
     if (!name) return "?";
-    // Split by space, filter out empty strings, map to first letter, join, and uppercase.
     const parts = name.split(/\s+/).filter(Boolean);
     if (parts.length === 1) {
         return parts[0].substring(0, 2).toUpperCase();
@@ -19,11 +17,9 @@ const getInitials = (name) => {
     return parts.map(part => part[0]).join('').substring(0, 2).toUpperCase();
 };
 
-// Component to render the circular avatar with initials
 const AvatarInitials = ({ name }) => {
     const initials = getInitials(name);
     
-    // Simple, consistent styling for a 32x32 circle with white text
     return (
         <div 
             className="w-8 h-8 rounded-full bg-gray-500 text-white flex items-center justify-center text-xs font-semibold flex-shrink-0"
@@ -33,7 +29,6 @@ const AvatarInitials = ({ name }) => {
     );
 };
 const MessageBubble = ({ text, isMe }) => {
-    // This is your original message bubble styling
     return (
         <div
             className={`
@@ -52,7 +47,6 @@ const MessageBubble = ({ text, isMe }) => {
 export default function MessagesPage() {
   const { user } = useUser();
 
-  // --- Convex Hooks ---
   const conversations = useQuery(api.messages.listConversations);
   // console.log("Conversations List:", conversations);
 
@@ -63,20 +57,17 @@ export default function MessagesPage() {
     activeChatId ? { conversationId: activeChatId } : "skip"
   );
 
-  // New Mutation for Group Chat
   const createGroup = useMutation(api.messages.createGroup);
-  // Existing Mutations (now handle DMs/Groups via membership)
   const startConversation = useMutation(api.messages.startConversation);
   const sendMessage = useMutation(api.messages.sendMessage);
   const deleteConversation = useMutation(api.messages.deleteConversation); 
   const markAsRead = useMutation(api.messages.markAsRead);
 
-  // --- Local State for UI ---
-  const [selectedMembers, setSelectedMembers] = React.useState([]); // Tracks all users for a new group/DM
+  const [selectedMembers, setSelectedMembers] = React.useState([]); 
   const [messageInput, setMessageInput] = React.useState("");
   const [error, setError] = React.useState("");
-  const [showSearch, setShowSearch] = React.useState(false); // Controls the main search panel visibility
-  const [isCreatingGroup, setIsCreatingGroup] = React.useState(false); // Controls if we are in Group creation mode
+  const [showSearch, setShowSearch] = React.useState(false); 
+  const [isCreatingGroup, setIsCreatingGroup] = React.useState(false); 
   const [groupName, setGroupName] = React.useState("");
   const [deleteTarget, setDeleteTarget] = React.useState(null);
   
@@ -96,14 +87,11 @@ export default function MessagesPage() {
    */
   const handleUserSelect = (selectedUser) => {
     if (selectedUser) {
-      // If we are creating a group, add to the selectedMembers array
       if (isCreatingGroup) {
-        // Prevent adding the same user twice
         if (!selectedMembers.find(m => m.tokenIdentifier === selectedUser.tokenIdentifier)) {
           setSelectedMembers((prev) => [...prev, selectedUser]);
         }
       } else {
-        // If not creating a group, this is a DM attempt, so only select one.
         setSelectedMembers([selectedUser]);
       }
     }
@@ -193,15 +181,13 @@ export default function MessagesPage() {
 }
 
 async function triggerDeleteModal(e, conversationId, conversationName) {
-    e.stopPropagation(); // Prevents the chat from opening when you click delete
+    e.stopPropagation(); 
 
-    // Set the target state to show the modal
     setDeleteTarget({ id: conversationId, name: conversationName });
 }
 
   const isLoadingConversations = conversations === undefined;
   
-  // Get the display name for the active chat panel title
   const activeChat = conversations?.find((c) => c._id === activeChatId);
 
 
@@ -353,13 +339,11 @@ async function triggerDeleteModal(e, conversationId, conversationName) {
                       {/* Name and Icon */}
                       <div className="flex justify-between items-center">
                         
-                        {/* Conversation Name (Now uses c.name, which is the group name or other user name) */}
                         <div className="font-medium truncate mr-2 flex items-center">
                             {c.isGroup && <Users size={16} className="mr-1 text-gray-500" />}
                             {c.name}
                         </div>
 
-                        {/* TRASH ICON - Always Visible & Right Aligned by justify-between */}
                         <button
                           onClick={(e) => triggerDeleteModal(e, c._id, c.name)}
                           className="text-gray-400 hover:text-red-600 p-1 flex-shrink-0" 
@@ -395,7 +379,6 @@ async function triggerDeleteModal(e, conversationId, conversationName) {
         ) : (
           <>
             <div className="p-4 border-b flex justify-between items-center">
-              {/* Uses the conversation name derived on the server */}
               <h2 className="font-semibold flex items-center">
                 {activeChat.isGroup && <Users size={20} className="mr-2 text-gray-500" />}
                 {activeChat.name}
@@ -406,9 +389,7 @@ async function triggerDeleteModal(e, conversationId, conversationName) {
             {/* Messages */}
             <div
             className="flex-1 overflow-y-auto p-4 flex flex-col gap-3 min-h-0"
-            // You may need to reverse the order for the messages array 
-            // and use `flex-col-reverse` on the container to anchor to the bottom 
-            // without a ref, but for now, we leave it as is.
+            
             >
             {messages === undefined ? (
                 <p>Loading…</p>

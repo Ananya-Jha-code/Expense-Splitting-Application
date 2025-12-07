@@ -156,10 +156,7 @@ export const create = mutation({
         finalContactIds.map(async (contactId) => {
             const contact = await ctx.db.get(contactId);
             if (contact) {
-                // Insert the group member link using the REAL groupId
-                // await ctx.db.insert("groupMembers", { groupId, contactId });
                 const memberIdForChat = contact.clerkUserId || contact._id;
-                // Return data for the chat creation
                 return { 
                     id: memberIdForChat, 
                     name: contact.name 

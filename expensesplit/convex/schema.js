@@ -75,9 +75,7 @@ export default defineSchema({
       deleted: v.boolean(), 
       lastReadTime: v.number(),
     })
-  // Index to quickly find all conversations for a single user
     .index("by_member", ["memberId"])
-  // Index to find all members of a specific conversation
     .index("by_conversation", ["conversationId"]),
 
     messages: defineTable({

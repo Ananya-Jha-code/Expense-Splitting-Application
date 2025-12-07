@@ -123,21 +123,6 @@ export default function GroupsPage() {
                   No contacts found. Add some first!
                 </p>
               ) : (
-                // allContacts.map((contact) => (
-                //   <div
-                //     key={contact._id}
-                //     className="flex items-center justify-between p-1 cursor-pointer hover:bg-gray-100"
-                //     onClick={() => toggleContact(contact._id)}
-                //   >
-                //     <span className="text-sm">{contact.name}</span>
-                //     <input
-                //       type="checkbox"
-                //       checked={selectedContactIds.includes(contact._id)}
-                //       readOnly
-                //       className="form-checkbox h-4 w-4 text-black rounded"
-                //     />
-                //   </div>
-                // ))
                 allContacts.map((contact) => {
                   const isUserContact =
                     userContact && contact._id === userContact._id;

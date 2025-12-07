@@ -22,18 +22,15 @@ async function computeGroupBalances(ctx, groupId) {
     .withIndex("by_group", (q) => q.eq("groupId", groupId))
     .collect();
 
-  // Maps: how much each contact OWES (their split) and how much they PAID
   const owed = new Map(ids.map((id) => [id, 0]));
   const paid = new Map(ids.map((id) => [id, 0]));
 
-  // We’ll try to match expense.createdBy (Clerk user id) to a contact in this group
   const clerkIdByContact = new Map();
   for (const c of cleanContacts) {
     if (c.clerkUserId) clerkIdByContact.set(c.clerkUserId, c._id);
   }
 
   for (const e of exps) {
-    // find payer contact for this expense (if any)
     const isSettlement = e.isSettlement ?? false;
     const payerContactId = isSettlement
       ? e.createdBy // createdBy is contactId for settlements

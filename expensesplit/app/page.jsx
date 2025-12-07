@@ -19,7 +19,6 @@ const LandingPage = () => {
   const { isSignedIn, isLoaded } = useUser();
   const router = useRouter();
 
-  // Redirect signed-in users to dashboard
   useEffect(() => {
     if (isLoaded && isSignedIn) {
       router.push("/dashboard");

@@ -50,7 +50,6 @@ export const listConversations = query({
         displayName = otherMember?.memberName;
       }
       
-      // 3. get latest msg for preview in convo list
       const lastMessage = await db
         .query("messages")
         .withIndex("by_conversation", (q) =>
@@ -59,9 +58,7 @@ export const listConversations = query({
         .order("desc")
         .first();
 
-      // 4. unread status
-      // check if the last message was sent by someone other than the current user
-      // AND if  conversation has a last message sender ID set.
+    
       const lastMessageTime = lastMessage?.createdAt ?? 0;
       const isLastMessageFromMe = lastMessage?.senderId && lastMessage.senderId === userId;
       
@@ -77,7 +74,6 @@ export const listConversations = query({
         lastMessage: lastMessage?.text ?? "",
         hasUnread: hasUnread,
         isGroup: convo.isGroup,
-        // no longer need otherUser, as we support multiple users
       });
     }
 
@@ -103,17 +99,11 @@ export const startConversation = mutation({
       throw new Error("You cannot message yourself.");
     }
 
-    // check for existing DM (Note: Checking for existing DMs is complex with the new schema index, 
-    // but the simplest approach is to always create a new one unless you can guarantee unique indexing.)
-    // For simplicity of refactoring, we'll focus on creation and trust the frontend logic.
-
-    // create the new convo document
     const conversationId = await db.insert("conversations", {
       isGroup: false,
       lastMessageSenderId: undefined,
     });
 
-    // create conversationMember entries for both users
     const myName = identity.name ?? identity.emailAddress;
     const now = Date.now();
 
@@ -137,63 +127,10 @@ export const startConversation = mutation({
   }
 });
 
-// group chat general format
-
-
-
-// // Creates new GC  w/ multiple members.
-// export const createGroup = mutation({
-//   args: {
-//     groupName: v.string(),
-//     memberIds: v.array(v.object({ id: v.string(), name: v.string() })), // arr of { id: ClerkID, name: string }
-//   },
-//   handler: async ({ db, auth }, { groupName, memberIds }) => {
-//     const identity = await auth.getUserIdentity();
-//     if (!identity) throw new Error("Not authenticated");
-
-//     const userId = identity.tokenIdentifier;
-//     const normalizedUserId = normalizeId(userId);
-//     const now = Date.now();
-
-//     // Ensure current user is in the list
-//     if (!memberIds.some(m => normalizeId(m.id) === normalizedUserId)) {
-//       memberIds.push({ 
-//         id: userId, 
-//         name: identity.name ?? identity.emailAddress 
-//       });
-//     }
-
-//     if (memberIds.length < 2) {
-//       throw new Error("A group must have at least two members.");
-//     }
-    
-//     // create new convo document
-//     const conversationId = await db.insert("conversations", {
-//       isGroup: true,
-//       name: groupName,
-//       lastMessageSenderId: undefined,
-//     });
-
-//     // create conversationMember entries for all members
-//     for (const member of memberIds) {
-//       await db.insert("conversationMembers", {
-//         conversationId: conversationId,
-//         memberId: normalizeId(member.id),
-//         memberName: member.name,
-//         deleted: false,
-//         lastReadTime: now,
-//       });
-//     }
-
-//     return { conversationId };
-//   }
-// });
-
 
 export const internalCreateGroupChat = internalMutation({
     args: {
         groupName: v.string(),
-        // Requires an array of full user info for chat members
         memberInfo: v.array(v.object({ 
             id: v.string(), // Full Clerk ID
             name: v.string() 
@@ -237,7 +174,7 @@ export const internalCreateGroupChat = internalMutation({
 
 
 // Public mutation for your messages page (to manually create a chat).
-// This wrapper handles auth and calls the internal function.
+
 export const createGroup = mutation({
     args: {
         groupName: v.string(),
@@ -247,7 +184,6 @@ export const createGroup = mutation({
         const identity = await ctx.auth.getUserIdentity();
         if (!identity) throw new Error("Not authenticated");
     
-        // Ensure current user is in the memberInfo array being passed to the internal function
         let memberInfo = args.memberIds;
         const currentUserId = identity.tokenIdentifier;
         normalizedCurrentUserId = normalizeId(currentUserId);
@@ -262,7 +198,6 @@ export const createGroup = mutation({
             ];
         }
     
-    // Call the internal core creation function
         return ctx.runMutation(internal.messages.internalCreateGroupChat, {
             groupName: args.groupName,
             memberInfo: memberInfo,
@@ -448,25 +383,19 @@ export const markAsRead = mutation({
         throw new Error("Not authorized to mark this conversation as read");
     }
 
-    // If the conversation already has no unread indicator, we're done.
     if (convo.lastMessageSenderId === undefined) {
         return { success: true };
     }
 
-    // 2. Update the current user's membership (marks their view as read)
     const now = Date.now();
     await db.patch(membership._id, {
         lastReadTime: now
     });
 
-    // If the user who sent the last message is the one reading it, 
-    // it should NOT clear the unread status for others. We just update their lastReadTime.
     if (convo.lastMessageSenderId === userId) {
         return { success: true };
     }
 
-    // 3. Check if ALL other active members have now read the last message.
-    // Get the last message to find its timestamp. 
     const lastMessage = await db
         .query("messages")
         .withIndex("by_conversation", (q) =>
@@ -475,24 +404,20 @@ export const markAsRead = mutation({
         .order("desc")
         .first();
 
-    // Safety check: if there's an unread status but no messages, something is wrong. Exit.
     if (!lastMessage) {
         await db.patch(conversationId, { lastMessageSenderId: undefined });
         return { success: true };
     }
 
-    // Get all other members in the conversation, excluding the sender of the last message.
     const allOtherMembers = await db
         .query("conversationMembers")
         .withIndex("by_conversation", (q) => q.eq("conversationId", conversationId))
-        .filter((q) => q.eq(q.field("deleted"), false)) // Only check active members
-        .filter((q) => q.neq(q.field("memberId"), normalizeId(convo.lastMessageSenderId))) // Exclude the sender
+        .filter((q) => q.eq(q.field("deleted"), false)) 
+        .filter((q) => q.neq(q.field("memberId"), normalizeId(convo.lastMessageSenderId))) 
         .collect();
 
-    // Check if ALL of these members have a lastReadTime greater than or equal to the last message's time.
     const allOthersHaveRead = allOtherMembers.every(m => m.lastReadTime >= lastMessage.createdAt);
 
-    // 4. If everyone else has read it, clear the unread indicator for the conversation itself.
     if (allOthersHaveRead) {
         await db.patch(conversationId, {
             lastMessageSenderId: undefined

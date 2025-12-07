@@ -3,7 +3,7 @@ import { httpAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { Webhook } from "svix";
 
-const http = httpRouter(); // ✅ create router instance
+const http = httpRouter(); 
 
 http.route({
   path: "/clerk-users-webhook",
@@ -53,4 +53,4 @@ async function validateRequest(req) {
   }
 }
 
-export default http; // ✅ make sure this is the router object
+export default http; 

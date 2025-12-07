@@ -349,7 +349,6 @@ export default function GroupDetailPage() {
                       <span className="font-mono ml-2">${s.amount.toFixed(2)}</span>
                     </div>
                     
-                    {/* CONDITIONAL RENDERING: Button ONLY appears if isAuthorized is true */}
                     {isAuthorized ? (
                       <button
                         type="button"
