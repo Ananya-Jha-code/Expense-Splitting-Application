@@ -51,7 +51,7 @@ export default defineSchema({
       description: v.string(),
       amount: v.number(),        
       createdAt: v.number(),
-      category: v.string(),
+      category: v.optional(v.string()),
       isSettlement: v.optional(v.boolean()),
     }).index("by_group", ["groupId"]),
   
