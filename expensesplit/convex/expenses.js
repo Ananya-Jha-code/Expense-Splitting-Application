@@ -305,12 +305,66 @@ export const add = mutation({
 
 export const recent = query({
   args: { limit: v.optional(v.number()) },
-  handler: async ({ db }, { limit = 5 }) => {
-    const list = await db.query("expenses").collect();
-    return list
-      .sort(
-        (a, b) => (b._creationTime ?? 0) - (a._creationTime ?? 0)
-      )
-      .slice(0, limit);
+  handler: async ({ db, auth }, { limit = 5 }) => {
+    const ident = await auth.getUserIdentity();
+    if (!ident) return []; // If not logged in, return empty
+
+    // 1. Get current user's contact ID (to find their splits)
+    const myContact = await db
+      .query("contacts")
+      .withIndex("by_clerkUserId", (q) => q.eq("clerkUserId", ident.subject))
+      .first();
+    
+    // If we can't identify the user in the contacts table, we can't find their splits
+    if (!myContact) return []; 
+
+    // 2. Get recent expenses
+    const expenses = await db.query("expenses").order("desc").take(limit);
+
+    return Promise.all(
+      expenses.map(async (e) => {
+        // A. Get Group Name
+        let groupName = "Personal";
+        if (e.groupId) {
+          const group = await db.get(e.groupId);
+          if (group) groupName = group.name;
+        }
+
+        // B. Get User's Specific Share (Split)
+        let myShareAmount = 0;
+        
+        // Find the split record for this expense + this user
+        const split = await db
+          .query("splits")
+          .withIndex("by_expense", (q) => q.eq("expenseId", e._id))
+          .filter((q) => q.eq(q.field("contactId"), myContact._id))
+          .first();
+
+        if (split) {
+          myShareAmount = split.share;
+        } else if (e.payerToken === ident.subject && !e.groupId) {
+           // Fallback: If it's a personal expense (no group) and I paid, it's 100% mine
+           myShareAmount = e.amount;
+        }
+
+        // Handle Settlement display logic (from previous fix)
+        let displayAmount = myShareAmount; 
+        if (e.isSettlement) {
+             // For settlements, showing "your share" might be confusing ($0 or negative).
+             // Often people prefer to see the full transaction amount for settlements.
+             // You can decide here. For now, I'll keep the logic to show the "transfer amount".
+             const match = e.description.match(/Amount:\s*([\d.]+)/);
+             if (match) displayAmount = parseFloat(match[1]);
+        }
+
+        return {
+          ...e,
+          title: e.title || e.description || "Untitled",
+          groupName,
+          amount: displayAmount, // This is now YOUR share, not the total!
+          totalAmount: e.amount    // Keeping the total available just in case
+        };
+      })
+    );
   },
 });
