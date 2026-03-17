@@ -1,5 +1,7 @@
 # Expense-Splitting-Application
 
+The Expense Splitting Application is a web-based platform designed to simplify the management of shared expenses among groups such as friends, roommates, or travel companions. The primary objective of this project was to automate the often tedious process of tracking costs, ensuring fair splits, and managing settlements. The system allows users to record expenses & view real-time balances, creating a transparent and stress-free financial environment.
+
 ## Switch to the latest code
 Make sure you are on the main branch where the latest changes are present:
 
