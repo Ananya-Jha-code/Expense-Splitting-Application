@@ -1,5 +1,4 @@
 # Expense-Splitting-Application
-Final project for COMPSCI 520
 
 ## Switch to the latest code
 Make sure you are on the main branch where the latest changes are present:
